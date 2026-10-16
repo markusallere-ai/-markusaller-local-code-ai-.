@@ -1,0 +1,101 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComplexCondition:CodeAssistant.kt$CodeAssistant$exactMatch || ( bestKnowledgeMatch.similarity &gt;= config.knowledgeSimilarityThreshold &amp;&amp; tokenOverlap &gt;= config.knowledgeMinimumTokenOverlap &amp;&amp; matchIsClear )</ID>
+    <ID>CyclomaticComplexMethod:BpeTokenizer.kt$BpeTokenizer$fun trainSkipGramEmbeddings(corpus: List&lt;String&gt;, epochs: Int, windowSize: Int): Int</ID>
+    <ID>CyclomaticComplexMethod:CodeGenerator.kt$CodeGenerator$private fun answerQuestion(p: String): String</ID>
+    <ID>CyclomaticComplexMethod:CodeGenerator.kt$CodeGenerator$private fun generateFunctionFromPrompt(p: String): String</ID>
+    <ID>CyclomaticComplexMethod:LanguageModelTrainer.kt$LanguageModelTrainer$private fun trainFeedforwardLanguageModel( corpus: List&lt;String&gt;, contextSize: Int, hiddenSize: Int, epochs: Int, learningRate: Double ): FeedforwardLanguageModel</ID>
+    <ID>LargeClass:CodeAssistant.kt$CodeAssistant</ID>
+    <ID>LongMethod:LanguageModelTrainer.kt$LanguageModelTrainer$private fun trainFeedforwardLanguageModel( corpus: List&lt;String&gt;, contextSize: Int, hiddenSize: Int, epochs: Int, learningRate: Double ): FeedforwardLanguageModel</ID>
+    <ID>LongMethod:Main.kt$MarkusallerWindow$private fun createContent(): JComponent</ID>
+    <ID>LongParameterList:CodeAssistant.kt$CodeAssistant$( corpus: List&lt;String&gt;, seed: String, maxTokens: Int, contextSize: Int = 2, hiddenSize: Int = 32, epochs: Int = 200 )</ID>
+    <ID>LoopWithTooManyJumpStatements:BpeTokenizer.kt$BpeTokenizer$for</ID>
+    <ID>LoopWithTooManyJumpStatements:BpeTokenizer.kt$BpeTokenizer$while</ID>
+    <ID>MagicNumber:BpeTokenizer.kt$BpeTokenizer$0.1</ID>
+    <ID>MagicNumber:BpeTokenizer.kt$BpeTokenizer$0.5</ID>
+    <ID>MagicNumber:BpeTokenizer.kt$BpeTokenizer$16</ID>
+    <ID>MagicNumber:BpeTokenizer.kt$BpeTokenizer$3</ID>
+    <ID>MagicNumber:BpeTokenizer.kt$BpeTokenizer$32</ID>
+    <ID>MagicNumber:BpeTokenizer.kt$BpeTokenizer$7</ID>
+    <ID>MagicNumber:BrainStateViewer.kt$BrainStateViewer$1000</ID>
+    <ID>MagicNumber:BrainStateViewer.kt$BrainStateViewer$13</ID>
+    <ID>MagicNumber:BrainStateViewer.kt$BrainStateViewer$600</ID>
+    <ID>MagicNumber:BrainStateViewer.kt$BrainStateViewer$900</ID>
+    <ID>MagicNumber:CodeAssistant.kt$CodeAssistant$20</ID>
+    <ID>MagicNumber:CodeAssistant.kt$CodeAssistant$3</ID>
+    <ID>MagicNumber:CodeAssistant.kt$CodeAssistant$6</ID>
+    <ID>MagicNumber:CodeGenerator.kt$CodeGenerator$10</ID>
+    <ID>MagicNumber:CodeGenerator.kt$CodeGenerator$120</ID>
+    <ID>MagicNumber:CodeGenerator.kt$CodeGenerator$18</ID>
+    <ID>MagicNumber:CodeGenerator.kt$CodeGenerator$500</ID>
+    <ID>MagicNumber:CodeGenerator.kt$CodeGenerator$6</ID>
+    <ID>MagicNumber:Evaluation.kt$EvaluationComponent$3</ID>
+    <ID>MagicNumber:JsonModels.kt$JsonCodec$1e308</ID>
+    <ID>MagicNumber:LanguageModelTrainer.kt$LanguageModelTrainer$0.01</ID>
+    <ID>MagicNumber:LanguageModelTrainer.kt$LanguageModelTrainer$0.1</ID>
+    <ID>MagicNumber:LanguageModelTrainer.kt$LanguageModelTrainer$0.5</ID>
+    <ID>MagicNumber:LanguageModelTrainer.kt$LanguageModelTrainer$1e-12</ID>
+    <ID>MagicNumber:LanguageModelTrainer.kt$LanguageModelTrainer$32</ID>
+    <ID>MagicNumber:LanguageModelTrainer.kt$LanguageModelTrainer$7</ID>
+    <ID>MagicNumber:SupervisedIntentClassifier.kt$SupervisedIntentClassifier$3</ID>
+    <ID>MagicNumber:SupervisedIntentClassifier.kt$SupervisedIntentClassifier$5</ID>
+    <ID>MaxLineLength:BpeTokenizer.kt$BpeTokenizer$if (entry.embedding.size == snapshot.embeddingDim) entry.embedding.toDoubleArray() else randomVector(index)</ID>
+    <ID>MaxLineLength:BpeTokenizer.kt$BpeTokenizer$private</ID>
+    <ID>MaxLineLength:CodeAssistant.kt$CodeAssistant$FileIo.logWarning("Tokenizer-Datei konnte nicht geladen werden, Retraining wird gestartet: ${tokenizerFile}", e)</ID>
+    <ID>MaxLineLength:CodeAssistant.kt$CodeAssistant$appendLine("Code-Quelle: ${CodeAssistant::class.java.protectionDomain?.codeSource?.location?.toExternalForm() ?: "unbekannt"}")</ID>
+    <ID>MaxLineLength:CodeAssistant.kt$CodeAssistant$return "Bitte gib eine konkrete Kotlin-Anfrage ein. Zum Beispiel: 'Erstelle eine Datenklasse für Nutzer mit Name und Alter.'"</ID>
+    <ID>MaxLineLength:CodeAssistant.kt$CodeAssistant$vocabularySample = tokenizer.vocabularySnapshot().take(20).map { (token, id) -&gt; BrainStateTokenDto(id, token) }</ID>
+    <ID>MaxLineLength:CodeAssistantBugFixTest.kt$CodeAssistantBugFixTest$assertEquals(Intent.GenerateFunction, assistant.classifyIntent("Kannst du eine Funktion zum Sortieren schreiben?"))</ID>
+    <ID>MaxLineLength:CodeAssistantTokenizerTest.kt$CodeAssistantTokenizerTest$assertEquals(assistant.tokenizeWithEmbeddings("Planung").tokens, assistant.tokenizeWithEmbeddings("planung").tokens)</ID>
+    <ID>MaxLineLength:CodeAssistantTokenizerTest.kt$CodeAssistantTokenizerTest$assertEquals(assistant.tokenizeWithEmbeddings("größer").tokens, assistant.tokenizeWithEmbeddings("groesser").tokens)</ID>
+    <ID>MaxLineLength:CodeAssistantTokenizerTest.kt$CodeAssistantTokenizerTest$val model = assistant.trainFeedforwardLanguageModel(trainingCorpus, contextSize = 2, hiddenSize = 8, epochs = 200, learningRate = 0.05)</ID>
+    <ID>MaxLineLength:CodeGenerator.kt$CodeGenerator$TextPatterns.containsWord(simplified, listOf("funktion", "methode")) -&gt; "Kotlin-Funktionen werden mit fun deklariert. Beispiel: fun add(a: Int, b: Int): Int = a + b"</ID>
+    <ID>MaxLineLength:CodeGenerator.kt$CodeGenerator$TextPatterns.containsWord(simplified, listOf("klasse", "objekt")) -&gt; "In Kotlin modellierst du Typen mit class oder data class. Beispiel: data class User(val name: String)"</ID>
+    <ID>MaxLineLength:CodeGenerator.kt$CodeGenerator$TextPatterns.containsWord(simplified, listOf("lambda")) || simplified.contains("funktionale") || simplified.contains("higher order") -&gt; lambdaExplanation()</ID>
+    <ID>MaxLineLength:CodeGenerator.kt$CodeGenerator$TextPatterns.containsWord(simplified, listOf("nullable")) || TextPatterns.containsWord(simplified, listOf("null")) -&gt; nullSafetyExplanation()</ID>
+    <ID>MaxLineLength:CodeGenerator.kt$CodeGenerator$TextPatterns.containsWord(simplified, listOf("pi", "kreiszahl")) || simplified.contains("π") -&gt; piExplanation()</ID>
+    <ID>MaxLineLength:CodeGenerator.kt$CodeGenerator$TextPatterns.containsWord(simplified, listOf("schleife", "while")) || TextPatterns.containsWord(simplified, listOf("for")) -&gt; loopExplanation()</ID>
+    <ID>MaxLineLength:CodeGenerator.kt$CodeGenerator$TextPatterns.containsWord(simplified, listOf("test", "assert")) -&gt; "Tests in Kotlin nutzen oft kotlin.test. Beispiel: @Test fun example() { assertEquals(2, 1 + 1) }"</ID>
+    <ID>MaxLineLength:CodeGenerator.kt$CodeGenerator$containsAny(normalized, listOf("pi", "π", "kreiszahl", "pi berechnen", "berechne pi", "zahl von pi", "pi wert")) -&gt; generatePiFunction(prompt)</ID>
+    <ID>MaxLineLength:CodeGenerator.kt$CodeGenerator$containsAny(normalized, listOf("summe", "durchschnitt", "sum", "average")) -&gt; generateMathFunction(prompt)</ID>
+    <ID>MaxLineLength:CodeGenerator.kt$CodeGenerator$else -&gt; "Ich kann lokale Kotlin-Aufgaben beantworten und Beispielcode erzeugen. Formuliere eine konkrete Anfrage wie 'Erstelle eine Datenklasse' oder 'Erkläre Kotlin Nullable-Typen'."</ID>
+    <ID>MaxLineLength:CodeGenerator.kt$CodeGenerator$if (wantsReturn == "Double") "return listOf(1.0, 2.0, 3.0).average()" else "println(listOf(1.0, 2.0, 3.0).average())"</ID>
+    <ID>MaxLineLength:CodeGenerator.kt$CodeGenerator$private</ID>
+    <ID>MaxLineLength:CodeGenerator.kt$CodeGenerator$private fun capitalize(s: String): String</ID>
+    <ID>MaxLineLength:CodeGenerator.kt$CodeGenerator$return</ID>
+    <ID>MaxLineLength:CodeGenerator.kt$CodeGenerator$return "fun $name($params)${if (resolvedReturnType != "Unit") ": $resolvedReturnType" else ""} {\n $body\n}\n"</ID>
+    <ID>MaxLineLength:CodeGenerator.kt$CodeGenerator$simplified.contains("data class") || TextPatterns.containsWord(simplified, listOf("datenklasse")) -&gt; dataClassExplanation()</ID>
+    <ID>MaxLineLength:CodeGenerator.kt$CodeGenerator$val fields = parseProperties(p).takeIf { it.isNotEmpty() } ?: listOf(Field("name", "String"), Field("age", "Int"))</ID>
+    <ID>MaxLineLength:CodeGenerator.kt$CodeGenerator$val fields = parseProperties(p).takeIf { it.isNotEmpty() } ?: listOf(Field("name", "String"), Field("createdAt", "String"))</ID>
+    <ID>MaxLineLength:Evaluation.kt$EvaluationComponent.Companion$IntentEvaluationCase("Erzeuge ein Klassenmodell fuer einen Auftrag mit Eigenschaften", Intent.GenerateClass)</ID>
+    <ID>MaxLineLength:Evaluation.kt$EvaluationComponent.Companion$IntentEvaluationCase("Speichere die Angaben zu einer Lieferung in einem Datentyp", Intent.GenerateDataClass)</ID>
+    <ID>MaxLineLength:IntentClassifier.kt$IntentClassifier$if</ID>
+    <ID>MaxLineLength:IntentClassifier.kt$IntentClassifier$if (TextPatterns.containsWord(normalized, listOf("funktion", "function", "fun"))) return rulePrediction(Intent.GenerateFunction)</ID>
+    <ID>MaxLineLength:IntentClassifier.kt$IntentClassifier$if (TextPatterns.containsWord(normalized, listOf("klasse", "class"))) return rulePrediction(Intent.GenerateClass)</ID>
+    <ID>MaxLineLength:IntentClassifier.kt$IntentClassifier.Companion$private val CREATION_PATTERN = Regex("\\b(erstelle?\\w*|schreib\\w*|lege\\w*\\s+.*\\ban|erzeuge?\\w*|implementier\\w*|baue?\\w*|generier\\w*|entwickel\\w*|entwirf)\\b")</ID>
+    <ID>MaxLineLength:LanguageModelTrainer.kt$LanguageModelTrainer$.</ID>
+    <ID>MaxLineLength:Main.kt$MarkusallerWindow$"&lt;span style='color:rgba(203,213,225,0.85);'&gt;${preview.trimEnd()}${if (entry.text.trim().split(Regex("\\s+")).size &gt; 3) "..." else ""}&lt;/span&gt;"</ID>
+    <ID>MaxLineLength:Main.kt$MarkusallerWindow$promptArea = JTextArea("Schreibe deine Kotlin-Anfrage hier. Beispiel: Erzeuge eine Datenklasse für Benutzer, die einen Namen und ein Alter enthält.")</ID>
+    <ID>MaxLineLength:Main.kt$MarkusallerWindow.&lt;no name provided&gt;$promptArea.text = "Schreibe deine Kotlin-Anfrage hier. Beispiel: Erzeuge eine Datenklasse für Benutzer, die einen Namen und ein Alter enthält."</ID>
+    <ID>MaxLineLength:TrainingExampleStore.kt$TrainingExampleStore$FileIo.writeAtomically(path, entries.joinToString(System.lineSeparator()) { JsonCodec.compactJson.encodeToString(it.toDto()) })</ID>
+    <ID>ReturnCount:CodeAssistant.kt$CodeAssistant$fun embeddingForToken(token: String): List&lt;Double&gt;</ID>
+    <ID>ReturnCount:CodeAssistant.kt$CodeAssistant$fun generateTextContinuation(seed: String, maxTokens: Int = 6): String</ID>
+    <ID>ReturnCount:CodeAssistant.kt$CodeAssistant$fun handlePrompt(prompt: String): String</ID>
+    <ID>ReturnCount:CodeAssistant.kt$CodeAssistant$private fun supervisedClassifier(): SupervisedIntentClassifier</ID>
+    <ID>ReturnCount:CodeGenerator.kt$CodeGenerator$private fun parseProperties(p: String): List&lt;Field&gt;</ID>
+    <ID>ReturnCount:IntentClassifier.kt$IntentClassifier$fun classifyWithDetails(prompt: String): IntentPrediction</ID>
+    <ID>ReturnCount:SupervisedIntentClassifier.kt$SupervisedIntentClassifier$fun predict( prompt: String, similarityThreshold: Double, marginThreshold: Double ): IntentPrediction?</ID>
+    <ID>TooGenericExceptionCaught:CodeAssistant.kt$CodeAssistant$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:KnowledgeStore.kt$KnowledgeStore$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:LanguageModelTrainer.kt$LanguageModelTrainer$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:TrainingExampleStore.kt$TrainingExampleStore$e: Exception</ID>
+    <ID>TooManyFunctions:BpeTokenizer.kt$BpeTokenizer</ID>
+    <ID>TooManyFunctions:CodeAssistant.kt$CodeAssistant</ID>
+    <ID>TooManyFunctions:CodeGenerator.kt$CodeGenerator</ID>
+    <ID>TooManyFunctions:Main.kt$MarkusallerWindow</ID>
+    <ID>WildcardImport:Main.kt$import java.awt.*</ID>
+    <ID>WildcardImport:Main.kt$import javax.swing.*</ID>
+  </CurrentIssues>
+</SmellBaseline>

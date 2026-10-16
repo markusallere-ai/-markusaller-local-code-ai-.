@@ -1,0 +1,27 @@
+complexity:
+  LongMethod:
+    active: true
+    threshold: 60
+  LargeClass:
+    active: true
+    threshold: 400
+
+style:
+  UnusedPrivateMember:
+    active: true
+  UnusedImports:
+    active: true
+  MagicNumber:
+    active: true
+    ignoreNumbers: ['-1', '0', '1', '2']
+    excludes: ['**/Main.kt', '**/test/**', '**/*Test.kt']
+
+potential-bugs:
+  UnreachableCode:
+    active: true
+  EqualsWithHashCodeExist:
+    active: true
+
+naming:
+  FunctionNaming:
+    active: false
