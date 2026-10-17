@@ -1,5 +1,6 @@
 package ai
 
+import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -13,6 +14,10 @@ class IntentClassifierTest {
             "Erstelle eine Klasse Person" to Intent.GenerateClass,
             "Erzeuge eine Datenklasse Person" to Intent.GenerateDataClass,
             "Schreibe eine Funktion addiere" to Intent.GenerateFunction,
+            "Erstelle eine Funktion, die die größte Zahl in einer Liste findet" to Intent.GenerateFunction,
+            "Finde den größten Wert in einer Liste" to Intent.GenerateFunction,
+            "Finde den kleinsten Wert in einer Liste" to Intent.GenerateFunction,
+            "Rechne 25 Celsius in Fahrenheit um" to Intent.GenerateFunction,
             "Schreibe einen Test für leere Eingaben" to Intent.GenerateTest,
             "Erkläre Kotlin-Datenklassen" to Intent.Explain,
             "Tokenisiere diesen Satz" to Intent.Tokenize
@@ -69,14 +74,43 @@ class IntentClassifierTest {
         assertEquals(Intent.GenerateClass, classifier.classify("Hallo Klasse"))
         assertEquals(Intent.GenerateFunction, classifier.classify("Hey Funktion"))
         assertEquals(Intent.GenerateTest, classifier.classify("Moin Test"))
+        assertEquals(Intent.GenerateFunction, classifier.classify("Hi, rechne Celsius in Fahrenheit um"))
     }
 
     @Test
-    fun longGreetingIsNotAcceptedByTheShortSmalltalkRule() {
+    fun temperatureWordsWithoutAnActionAreNotClassifiedAsFunctionGeneration() {
+        val classifier = IntentClassifier()
+
+        assertEquals(Intent.Unknown, classifier.classify("Celsius und Fahrenheit"))
+        assertEquals(Intent.Unknown, classifier.classify("Temperatur"))
+    }
+
+    @Test
+    fun supervisedFallbackDoesNotTurnTemperatureTermsAloneIntoFunctionRequests() {
+        val classifier = IntentClassifier {
+            IntentPrediction(Intent.GenerateFunction, 0.9, "test-model")
+        }
+        val prediction = classifier.classifyWithDetails("Celsius und Fahrenheit")
+        assertEquals(Intent.Unknown, prediction.intent)
+        assertEquals("temperature-action-required", prediction.method)
+
+        val storage = Files.createTempDirectory("temperature-intent-assistant")
+        val assistant = CodeAssistant(AssistantConfig(storage))
+
+        assertFalse(assistant.classifyIntent("Celsius und Fahrenheit") == Intent.GenerateFunction)
+        assertFalse(assistant.classifyIntent("Temperatur") == Intent.GenerateFunction)
+    }
+
+    @Test
+    fun conversationalGreetingsAndCommonSmalltalkAreRecognizedWithoutCapturingTasks() {
         val prediction = IntentClassifier().classifyWithDetails("Hallo, wie geht es dir heute?")
 
-        assertFalse(prediction.intent == Intent.Smalltalk)
-        assertFalse(prediction.method == "rule" && prediction.intent == Intent.Smalltalk)
+        assertEquals(Intent.Smalltalk, prediction.intent)
+        assertEquals("rule", prediction.method)
+        assertEquals(Intent.Smalltalk, IntentClassifier().classify("Was kannst du?"))
+        assertEquals(Intent.Smalltalk, IntentClassifier().classify("Danke dir"))
+        assertEquals(Intent.Smalltalk, IntentClassifier().classify("Wiederhole das"))
+        assertEquals(Intent.GenerateClass, IntentClassifier().classify("Hallo, erstelle eine Klasse Person"))
     }
 
     @Test

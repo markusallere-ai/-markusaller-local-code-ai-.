@@ -5,6 +5,8 @@ import java.nio.file.Path
 import java.time.LocalDateTime
 import kotlinx.serialization.encodeToString
 
+private const val EXPERIMENTAL_CHAT_HISTORY_LIMIT = 8
+
 /**
  * Public facade for prompt routing, knowledge access, tokenization, and local evaluation.
  */
@@ -31,8 +33,17 @@ class CodeAssistant(private val config: AssistantConfig = AssistantConfig()) {
 
     /** Priorisiert exaktes Wissen, danach zulässige Fuzzy-Treffer und zuletzt den Generator. */
     private fun resolvePrompt(prompt: String): ResolvedPrompt {
+        val temperatureAnswer = if (
+            TextPatterns.isNumericTemperatureQuestion(TextFold.fold(prompt))
+        ) {
+            codeGenerator.generateSpecializedExample(prompt, Intent.Unknown)
+        } else {
+            null
+        }
         val exactAnswer = knowledgeStore.findExact(prompt)?.answer
         return when {
+            temperatureAnswer != null ->
+                ResolvedPrompt(temperatureAnswer, Intent.GenerateFunction, usedKnowledge = false)
             exactAnswer != null -> ResolvedPrompt(exactAnswer, Intent.Unknown, usedKnowledge = true)
             else -> {
                 val prediction = classifyIntentWithDetails(prompt)
@@ -61,6 +72,9 @@ class CodeAssistant(private val config: AssistantConfig = AssistantConfig()) {
 
     /** Verwirft beide möglichen offenen Gesprächszustände atomar. */
     fun cancelPendingClarification() = conversationCoordinator.cancelPendingClarification()
+
+    /** Löscht offene Rückfragen und den flüchtigen Kontext der letzten Gesprächsschritte. */
+    fun resetConversation() = conversationCoordinator.resetConversation()
 
     @Deprecated(
         message = "This stores knowledge without training model weights; use storeKnowledge instead.",
@@ -272,6 +286,55 @@ class CodeAssistant(private val config: AssistantConfig = AssistantConfig()) {
         path: Path = config.feedforwardModelFile()
     ): FeedforwardLanguageModel? = languageModelTrainer.load(path)
 
+    /**
+     * Trains and stores the clearly experimental local chat model from bundled
+     * dialogue examples. No pretrained or external model is used.
+     */
+    fun trainExperimentalChatModel(epochs: Int = 24): String {
+        ensureInitialized()
+        val model = transformerChatTrainer.train(
+            ExperimentalChatCorpus.examples,
+            contextSize = 24,
+            embeddingSize = 24,
+            epochs = epochs
+        )
+        transformerChatTrainer.save(model, config.transformerChatModelFile())
+        transformerChatModel = model
+        val firstLoss = model.lossHistory.firstOrNull()
+        val finalLoss = model.lossHistory.lastOrNull()
+        return "Experimentelles Transformer-Modell trainiert und gespeichert " +
+            "(${model.vocabulary.size} Token, $epochs Epochen, Loss " +
+            "${firstLoss?.let { "%.3f".format(it) } ?: "n/a"} → " +
+            "${finalLoss?.let { "%.3f".format(it) } ?: "n/a"})."
+    }
+
+    /** Generates one experimental reply using prior turns supplied by the UI. */
+    fun experimentalChatResponse(prompt: String, previousTurns: List<HistoryEntry> = emptyList()): String {
+        ensureInitialized()
+        require(prompt.isNotBlank()) { "Die Chatnachricht darf nicht leer sein." }
+        val model = transformerChatModel
+            ?: transformerChatTrainer.load(config.transformerChatModelFile())?.also {
+                transformerChatModel = it
+            }
+            ?: throw IllegalStateException(
+                "Das experimentelle Transformer-Modell wurde noch nicht trainiert. " +
+                    "Wähle zuerst „KI-Modell trainieren“."
+            )
+        val messages = previousTurns.takeLast(EXPERIMENTAL_CHAT_HISTORY_LIMIT).mapNotNull { entry ->
+            when (entry.role) {
+                "Prompt" -> ChatMessage("user", entry.text)
+                "Antwort" -> ChatMessage(
+                    "assistant",
+                    entry.text.substringAfter("]\n", entry.text)
+                )
+                else -> null
+            }
+        } + ChatMessage("user", prompt)
+        val generated = model.generate(messages, maxTokens = 48)
+        return "[EXPERIMENTELLER TRANSFORMER – Antwort kann unsinnig sein]\n" +
+            generated.ifBlank { "Das Modell hat keine Antwort erzeugt. Bitte anders formulieren." }
+    }
+
     /** Erzeugt den Anfragevektor durch Tokenisierung und Mittelung der bekannten Embeddings. */
     private fun queryEmbedding(text: String): List<Double> {
         val tokens = tokenizer.tokenize(text).filter { it.isNotBlank() }
@@ -331,7 +394,15 @@ class CodeAssistant(private val config: AssistantConfig = AssistantConfig()) {
     }
 
     private val tokenizer = BpeTokenizer()
-    private val tokenizerProfile = TokenizerProfile(config, tokenizer, AssistantTrainingCorpus.sentences)
+    private val stableTrainingCorpus =
+        AssistantTrainingCorpus.sentences - SupplementalTrainingCorpus.conversationSentences.toSet()
+    private val tokenizerProfile = TokenizerProfile(
+        config = config,
+        tokenizer = tokenizer,
+        defaultCorpus = AssistantTrainingCorpus.sentences,
+        defaultTokenizerCorpus = stableTrainingCorpus,
+        defaultEmbeddingCorpus = stableTrainingCorpus
+    )
     @Volatile private var initialized = false
     private val initLock = Any()
     private val knowledgeStore by lazy {
@@ -360,6 +431,8 @@ class CodeAssistant(private val config: AssistantConfig = AssistantConfig()) {
     private val languageModelTrainer by lazy {
         LanguageModelTrainer(tokenizer)
     }
+    private val transformerChatTrainer by lazy { TinyTransformerChatTrainer() }
+    @Volatile private var transformerChatModel: TinyTransformerChatModel? = null
     private val evaluationComponent by lazy {
         EvaluationComponent(
             classify = ::classifyIntentWithDetails,
@@ -396,8 +469,9 @@ class CodeAssistant(private val config: AssistantConfig = AssistantConfig()) {
     /** Liefert Token, IDs und Embeddings positionsgleich für Diagnose und Anzeige. */
     fun tokenizeWithEmbeddings(text: String): TokenEmbeddingResult {
         ensureInitialized()
-        val tokens = tokenizer.tokenize(text)
-        val ids = tokenizer.encode(text)
+        val tokenIds = tokenizer.tokenizeWithIds(text)
+        val tokens = tokenIds.map { it.first }
+        val ids = tokenIds.map { it.second }
         val embeddings = ids.map(tokenizer::embeddingForId)
         return TokenEmbeddingResult(tokens, ids, embeddings)
     }

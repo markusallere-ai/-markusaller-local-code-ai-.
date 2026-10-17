@@ -31,6 +31,9 @@ class CodeAssistantTokenizerTest {
         assertTrue(corpus.any { "C++" in it })
         assertTrue(corpus.any { "Python" in it })
         assertTrue(corpus.any { "JavaScript" in it })
+        assertTrue(corpus.size >= 120)
+        assertTrue(corpus.any { "Folgefrage" in it && "Gespräch" in it })
+        assertTrue(corpus.any { "Gesprächskontext" in it })
     }
 
     @Test
@@ -80,6 +83,16 @@ class CodeAssistantTokenizerTest {
     fun tokenizerFoldsCaseAndGermanDiacriticsConsistently() {
         assertEquals(assistant.tokenizeWithEmbeddings("Planung").tokens, assistant.tokenizeWithEmbeddings("planung").tokens)
         assertEquals(assistant.tokenizeWithEmbeddings("größer").tokens, assistant.tokenizeWithEmbeddings("groesser").tokens)
+    }
+
+    @Test
+    fun tokenizerKeepsSupplementaryUnicodeCharactersIntact() {
+        val tokenizer = BpeTokenizer()
+        val input = "🚀👩‍💻"
+        tokenizer.train(listOf(input), maxMergeRules = 0)
+
+        assertEquals(input, tokenizer.tokenize(input).joinToString(""))
+        assertEquals(listOf("🚀", "👩", "\u200d", "💻"), tokenizer.tokenize(input))
     }
 
     @Test

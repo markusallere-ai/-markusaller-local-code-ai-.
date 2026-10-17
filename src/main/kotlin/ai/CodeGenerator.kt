@@ -1,12 +1,34 @@
 package ai
 
+import java.math.BigDecimal
+import java.math.RoundingMode
+
 /** Generates Kotlin snippets and explanations from classified prompts. */
+@Suppress("LargeClass")
 class CodeGenerator(private val tokenizer: BpeTokenizer) {
     private val explanations = CodeExplanations()
     private val examples = ExampleSnippetGenerator()
 
     /** Leitet die erkannte Kategorie an den passenden Vorlagen- oder Erklärungszweig weiter. */
     fun generate(prompt: String, intent: Intent): String = generateSnippet(prompt, intent)
+
+    private enum class GeneratedFunctionOperation {
+        MAX,
+        MIN,
+        DIFFERENCE,
+        TEMPERATURE
+    }
+
+    private data class GeneratedFunctionTestOperation(
+        val operation: GeneratedFunctionOperation,
+        val fahrenheitToCelsius: Boolean
+    )
+
+    private data class TemperatureQuestion(
+        val input: BigDecimal,
+        val sourceIsCelsius: Boolean,
+        val targetFahrenheit: Boolean
+    )
 
     /** Wählt anhand des Intents ein deterministisches Snippet oder eine ehrliche Unknown-Antwort. */
     private fun generateSnippet(prompt: String, intent: Intent): String {
@@ -21,8 +43,7 @@ class CodeGenerator(private val tokenizer: BpeTokenizer) {
             Intent.GenerateDataClass -> generateDataClassFromPrompt(prompt)
             Intent.GenerateClass -> generateClassFromPrompt(prompt)
             Intent.GenerateFunction -> generateFunctionFromPrompt(prompt)
-            Intent.Smalltalk -> "Hallo! Ich bin ein lokaler Kotlin-Code-Assistent. " +
-                "Ich kann Kotlin-Klassen, Datenklassen, Funktionen und Tests erstellen oder Code erklaeren."
+            Intent.Smalltalk -> ConversationResponder.reply(prompt)
             Intent.Unknown -> when {
                 containsAny(normalized, listOf("summe", "durchschnitt", "sum", "average", "mittelwert")) ->
                     generateFunctionFromPrompt(prompt)
@@ -37,6 +58,10 @@ class CodeGenerator(private val tokenizer: BpeTokenizer) {
 
     /** Erzeugt bekannte mathematische Beispiele vor der Intent-Klassifikation, wenn der Prompt eine Aktion verlangt. */
     fun generateSpecializedExample(prompt: String, intent: Intent): String? {
+        return generateTemperatureAnswer(prompt) ?: generateNonTemperatureSpecializedExample(prompt, intent)
+    }
+
+    private fun generateNonTemperatureSpecializedExample(prompt: String, intent: Intent): String? {
         val normalized = normalizePrompt(prompt)
         if (
             !shouldGenerateSpecializedExample(intent) ||
@@ -64,12 +89,79 @@ class CodeGenerator(private val tokenizer: BpeTokenizer) {
         }
     }
 
+    /** Answers explicit numeric temperature questions instead of generating a reusable function. */
+    private fun generateTemperatureAnswer(prompt: String): String? {
+        val question = parseTemperatureQuestion(prompt) ?: return null
+        return formatTemperatureAnswer(question)
+    }
+
+    private fun parseTemperatureQuestion(prompt: String): TemperatureQuestion? {
+        val targetFahrenheit = Regex("\\b(in|zu|nach|to)\\s+(?:grad\\s+)?fahrenheit\\b", RegexOption.IGNORE_CASE)
+            .containsMatchIn(prompt) ||
+            Regex("°\\s*f\\b", RegexOption.IGNORE_CASE).containsMatchIn(prompt)
+        val targetCelsius = Regex("\\b(in|zu|nach|to)\\s+(?:grad\\s+)?celsius\\b", RegexOption.IGNORE_CASE)
+            .containsMatchIn(prompt) ||
+            Regex("°\\s*c\\b", RegexOption.IGNORE_CASE).containsMatchIn(prompt)
+        val input = Regex("(?<![\\p{L}\\p{N}_])[+-]?\\d+(?:[.,]\\d+)?(?![\\p{L}\\p{N}_])")
+            .find(prompt)?.value?.replace(',', '.')?.toBigDecimalOrNull()
+        val hasTemperatureUnit = TextPatterns.containsTemperatureTerm(normalizePrompt(prompt)) ||
+            Regex("°|\\bgrad\\b", RegexOption.IGNORE_CASE).containsMatchIn(prompt)
+        val isCodeRequest = TextPatterns.containsWord(
+            normalizePrompt(prompt),
+            listOf(
+                "funktion", "function", "code", "programm", "erstelle", "erzeuge",
+                "schreibe", "schreib", "implementiere", "implementier", "generiere",
+                "generier", "klasse", "class"
+            )
+        )
+        val isConversionCommand = TextPatterns.isTemperatureConversionRequest(normalizePrompt(prompt))
+        val targetStart = listOf(
+            Regex("\\b(in|zu|nach|to)\\s+(?:grad\\s+)?(?:fahrenheit|celsius)\\b", RegexOption.IGNORE_CASE),
+            Regex("°\\s*[fc]\\b", RegexOption.IGNORE_CASE)
+        ).mapNotNull { it.find(prompt)?.range?.first }.minOrNull() ?: prompt.length
+        val explicitCelsiusSource =
+            Regex("°\\s*c\\b|\\bcelsius\\b", RegexOption.IGNORE_CASE)
+                .findAll(prompt).any { it.range.first < targetStart }
+        val explicitFahrenheitSource =
+            Regex("°\\s*f\\b|\\bfahrenheit\\b", RegexOption.IGNORE_CASE)
+                .findAll(prompt).any { it.range.first < targetStart }
+        val sourceIsCelsius = when {
+            explicitCelsiusSource -> true
+            explicitFahrenheitSource -> false
+            else -> targetFahrenheit
+        }
+        if (targetFahrenheit == targetCelsius || input == null) return null
+        val isSupportedQuestion =
+            !isCodeRequest && !isConversionCommand && hasTemperatureUnit &&
+                sourceIsCelsius == targetFahrenheit
+        return if (isSupportedQuestion) {
+            TemperatureQuestion(input, sourceIsCelsius, targetFahrenheit)
+        } else {
+            null
+        }
+    }
+
+    private fun formatTemperatureAnswer(question: TemperatureQuestion): String {
+        val result = if (question.sourceIsCelsius) {
+            question.input.multiply(BigDecimal("1.8")).add(BigDecimal("32"))
+        } else {
+            question.input.subtract(BigDecimal("32"))
+                .divide(BigDecimal("1.8"), 2, RoundingMode.HALF_UP)
+        }.setScale(2, RoundingMode.HALF_UP).stripTrailingZeros().toPlainString()
+        val sourceUnit = if (question.sourceIsCelsius) "°C" else "°F"
+        val targetUnit = if (question.targetFahrenheit) "°F" else "°C"
+        val inputText = question.input.stripTrailingZeros().toPlainString()
+        return "$inputText $sourceUnit entsprechen $result $targetUnit."
+    }
+
     /** Erzeugt den angefragten Typ/Funktionscode und ergänzt einen einfachen Testentwurf. */
+    @Suppress("ComplexMethod", "LongMethod")
     private fun generateTaskWithTest(p: String): String {
         val normalized = normalizePrompt(p)
         return when {
             TextPatterns.containsWord(normalized, listOf("datenklasse")) || normalized.contains("data class") -> {
-                val fields = parseProperties(p).takeIf { it.isNotEmpty() } ?: listOf(Field("name", "String"), Field("age", "Int"))
+                val fields = parseProperties(p).takeIf { it.isNotEmpty() }
+                    ?: listOf(Field("name", "String"), Field("age", "Int"))
                 val className = extractName(
                     p,
                     listOf("datenklasse", "data class", "klassenmodell", "klasse", "class")
@@ -78,18 +170,22 @@ class CodeGenerator(private val tokenizer: BpeTokenizer) {
                 assembleTestSource(classCode, generateTestForClass(className, fields), "assertEquals")
             }
             TextPatterns.containsWord(normalized, listOf("klasse", "class")) -> {
-                val fields = parseProperties(p).takeIf { it.isNotEmpty() } ?: listOf(Field("name", "String"), Field("createdAt", "String"))
+                val fields = parseProperties(p).takeIf { it.isNotEmpty() }
+                    ?: listOf(Field("name", "String"), Field("createdAt", "String"))
                 val className = extractName(p, listOf("klasse", "class")) ?: "MyClass"
                 val classCode = generateClass(className, fields)
                 assembleTestSource(classCode, generateTestForClass(className, fields), "assertEquals")
             }
             TextPatterns.containsWord(normalized, listOf("funktion", "function")) -> {
-                val functionName = generatedFunctionName(p, normalized)
+                val fallbackFunctionName = generatedFunctionName(p, normalized)
                 val fields = generatedFunctionParameters(p, normalized)
                 val isSum = hasCompatibleOperationParameters(normalized, fields, isSumRequest(normalized))
                 val isAverage = hasCompatibleOperationParameters(normalized, fields, isAverageRequest(normalized))
+                val operation = resolveGeneratedFunctionOperation(normalized)
+                val functionName = operation?.let { generatedOperationName(p, normalized, it) }
+                    ?: fallbackFunctionName
                 val functionCode = generateFunctionFromPrompt(p)
-                val assertion = if (isSum || isAverage) {
+                val assertion = if (isSum || isAverage || operation != null) {
                     "assertEquals"
                 } else {
                     "assertTrue"
@@ -100,7 +196,14 @@ class CodeGenerator(private val tokenizer: BpeTokenizer) {
                         functionName,
                         fields,
                         isSum,
-                        isAverage
+                        isAverage,
+                        operation?.let {
+                            GeneratedFunctionTestOperation(
+                                it,
+                                it == GeneratedFunctionOperation.TEMPERATURE &&
+                                    isFahrenheitToCelsius(normalized)
+                            )
+                        }
                     ),
                     assertion
                 )
@@ -112,6 +215,11 @@ class CodeGenerator(private val tokenizer: BpeTokenizer) {
     /** Leitet Name, Parameter, Rückgabetyp und einfachen Beispielrumpf aus der Anfrage ab. */
     private fun generateFunctionFromPrompt(p: String): String {
         val normalized = normalizePrompt(p)
+        val operation = resolveGeneratedFunctionOperation(normalized)
+        if (operation != null) {
+            return generateFunctionOperation(p, normalized, operation)
+        }
+
         val name = generatedFunctionName(p, normalized)
         val fields = generatedFunctionParameters(p, normalized)
         val params = fields.joinToString(", ") { "${it.name}: ${it.type}" }
@@ -146,10 +254,109 @@ class CodeGenerator(private val tokenizer: BpeTokenizer) {
         return "fun $name($params)${if (returnType != "Unit") ": $returnType" else ""} {\n    $body\n}\n"
     }
 
+    @Suppress("ComplexMethod", "LongMethod")
+    private fun generateFunctionOperation(
+        prompt: String,
+        normalized: String,
+        operation: GeneratedFunctionOperation
+    ): String {
+        val name = generatedOperationName(prompt, normalized, operation)
+
+        return when (operation) {
+            GeneratedFunctionOperation.MAX -> {
+                val valuesName = "numbers"
+                val usesDecimal = usesDecimalOperationValues(normalized)
+                val elementType = if (usesDecimal) "List<Double>" else "List<Int>"
+                val returnType = if (usesDecimal) "Double" else "Int"
+                val fallback = if (usesDecimal) "0.0" else "0"
+                "fun $name($valuesName: $elementType): $returnType {\n" +
+                    "    require($valuesName.isNotEmpty()) { \"$valuesName darf nicht leer sein\" }\n" +
+                    "    return $valuesName.maxOrNull() ?: $fallback\n" +
+                    "}\n"
+            }
+            GeneratedFunctionOperation.MIN -> {
+                val valuesName = "numbers"
+                val usesDecimal = usesDecimalOperationValues(normalized)
+                val elementType = if (usesDecimal) "List<Double>" else "List<Int>"
+                val returnType = if (usesDecimal) "Double" else "Int"
+                val fallback = if (usesDecimal) "0.0" else "0"
+                "fun $name($valuesName: $elementType): $returnType {\n" +
+                    "    require($valuesName.isNotEmpty()) { \"$valuesName darf nicht leer sein\" }\n" +
+                    "    return $valuesName.minOrNull() ?: $fallback\n" +
+                    "}\n"
+            }
+            GeneratedFunctionOperation.DIFFERENCE -> {
+                val usesDecimal = usesDecimalOperationValues(normalized)
+                val firstName = if (usesDecimal) "firstPrice" else "firstNumber"
+                val secondName = if (usesDecimal) "secondPrice" else "secondNumber"
+                val type = if (usesDecimal) "Double" else "Int"
+                "fun $name($firstName: $type, $secondName: $type): $type {\n" +
+                    "    return $firstName - $secondName\n" +
+                    "}\n"
+            }
+            GeneratedFunctionOperation.TEMPERATURE -> {
+                val isFahrenheitToCelsius = isFahrenheitToCelsius(normalized)
+                val inputName = if (isFahrenheitToCelsius) "fahrenheit" else "celsius"
+                val expression = if (isFahrenheitToCelsius) {
+                    "(fahrenheit - 32.0) * 5.0 / 9.0"
+                } else {
+                    "(celsius * 9.0 / 5.0) + 32.0"
+                }
+                "fun $name($inputName: Double): Double {\n" +
+                    "    return $expression\n" +
+                    "}\n"
+            }
+        }
+    }
+
+    private fun generatedOperationName(
+        prompt: String,
+        normalized: String,
+        operation: GeneratedFunctionOperation
+    ): String {
+        val explicitName = extractName(prompt, listOf("funktion", "function"))
+            ?.replaceFirstChar { it.lowercase() }
+        return explicitName ?: when (operation) {
+            GeneratedFunctionOperation.MAX -> "berechneMaximum"
+            GeneratedFunctionOperation.MIN -> "berechneMinimum"
+            GeneratedFunctionOperation.DIFFERENCE -> "berechneDifferenz"
+            GeneratedFunctionOperation.TEMPERATURE ->
+                if (isFahrenheitToCelsius(normalized)) "fahrenheitToCelsius" else "celsiusToFahrenheit"
+        }
+    }
+
+    private fun isFahrenheitToCelsius(normalized: String): Boolean =
+        containsAny(normalized, listOf("fahrenheit")) &&
+            (
+                Regex("\\bfahrenheit\\s+(in|zu|nach|to)\\s+celsius\\b").containsMatchIn(normalized) ||
+                    !containsAny(normalized, listOf("celsius"))
+                )
+
+    private fun usesDecimalOperationValues(normalized: String): Boolean =
+        containsAny(
+            normalized,
+            listOf(
+                "preis", "preise", "preisen", "betrag", "betraege", "betraegen",
+                "double", "komma", "dezimal", "decimal"
+            )
+        )
+
+    private fun resolveGeneratedFunctionOperation(normalized: String): GeneratedFunctionOperation? = when {
+        TextPatterns.containsWord(normalized, MAX_WORDS) -> GeneratedFunctionOperation.MAX
+        TextPatterns.containsWord(normalized, MIN_WORDS) -> GeneratedFunctionOperation.MIN
+        TextPatterns.containsWord(normalized, DIFFERENCE_WORDS) -> GeneratedFunctionOperation.DIFFERENCE
+        isTemperatureConversionRequest(normalized) -> GeneratedFunctionOperation.TEMPERATURE
+        else -> null
+    }
+
+    private fun isTemperatureConversionRequest(normalized: String): Boolean =
+        TextPatterns.isTemperatureConversionRequest(normalized)
+
     /** Baut eine Datenklasse aus erkannten Feldern oder nutzt ein minimales Standardbeispiel. */
     private fun generateDataClassFromPrompt(p: String): String {
         val name = extractName(p, listOf("datenklasse", "data class", "klassenmodell", "klasse", "class")) ?: "Person"
-        val fields = parseProperties(p).takeIf { it.isNotEmpty() } ?: listOf(Field("name", "String"), Field("age", "Int"))
+        val fields = parseProperties(p).takeIf { it.isNotEmpty() }
+            ?: listOf(Field("name", "String"), Field("age", "Int"))
         return generateDataClass(name, fields)
     }
 
@@ -171,6 +378,9 @@ class CodeGenerator(private val tokenizer: BpeTokenizer) {
 
     /** Leitet bekannte Rechenparameter ab und verwendet für andere Aufgaben extrahierte Felder. */
     private fun generatedFunctionParameters(prompt: String, normalized: String): List<Field> {
+        val operation = resolveGeneratedFunctionOperation(normalized)
+        if (operation != null) return operationParameters(operation, normalized)
+
         val parsed = parseProperties(prompt)
         return when {
             PRINT_ACTION_PATTERN.containsMatchIn(normalized) && parsed.isEmpty() ->
@@ -184,6 +394,24 @@ class CodeGenerator(private val tokenizer: BpeTokenizer) {
             isSumRequest(normalized) && parsed.isEmpty() -> listOf(Field("numbers", "List<Int>"))
             isAverageRequest(normalized) && parsed.isEmpty() -> listOf(Field("values", "List<Double>"))
             else -> parsed
+        }
+    }
+
+    private fun operationParameters(
+        operation: GeneratedFunctionOperation,
+        normalized: String
+    ): List<Field> {
+        val decimal = usesDecimalOperationValues(normalized)
+        return when (operation) {
+            GeneratedFunctionOperation.MAX, GeneratedFunctionOperation.MIN ->
+                listOf(Field("numbers", if (decimal) "List<Double>" else "List<Int>"))
+            GeneratedFunctionOperation.DIFFERENCE -> {
+                val type = if (decimal) "Double" else "Int"
+                val suffix = if (decimal) "Price" else "Number"
+                listOf(Field("first$suffix", type), Field("second$suffix", type))
+            }
+            GeneratedFunctionOperation.TEMPERATURE ->
+                listOf(Field(if (isFahrenheitToCelsius(normalized)) "fahrenheit" else "celsius", "Double"))
         }
     }
 
@@ -213,7 +441,8 @@ class CodeGenerator(private val tokenizer: BpeTokenizer) {
     /** Baut eine Klasse mit Konstruktorfeldern und einer beschreibenden Methode. */
     private fun generateClassFromPrompt(p: String): String {
         val name = extractName(p, listOf("klassenmodell", "klasse", "class")) ?: "MyClass"
-        val fields = parseProperties(p).takeIf { it.isNotEmpty() } ?: listOf(Field("name", "String"), Field("createdAt", "String"))
+        val fields = parseProperties(p).takeIf { it.isNotEmpty() }
+            ?: listOf(Field("name", "String"), Field("createdAt", "String"))
         return generateClass(name, fields)
     }
 
@@ -265,7 +494,8 @@ class CodeGenerator(private val tokenizer: BpeTokenizer) {
         functionName: String,
         parameters: List<Field>,
         isSum: Boolean,
-        isAverage: Boolean
+        isAverage: Boolean,
+        operation: GeneratedFunctionTestOperation? = null
     ): String {
         val testClass = functionName.replaceFirstChar { it.titlecase() }
         val arguments = if (isSum && parameters.size == 2) {
@@ -273,14 +503,21 @@ class CodeGenerator(private val tokenizer: BpeTokenizer) {
         } else {
             parameters.joinToString(", ") { sampleValueForType(it.type) }
         }
-        val (testName, assertion) = when {
-            isSum && parameters.size == 2 && parameters.first().type == "Double" ->
-                "ReturnsExpectedSum" to "assertEquals(4.0, $functionName(1.5, 2.5), 0.001)"
-            isSum -> "ReturnsExpectedSum" to "assertEquals(6, $functionName($arguments))"
-            isAverage ->
-                "ReturnsExpectedAverage" to "assertEquals(2.0, $functionName($arguments), 0.0001)"
-            else -> "IsCallable" to
-                "assertTrue(runCatching { $functionName($arguments) }.isSuccess)"
+        val (testName, assertion) = when (operation?.operation) {
+            GeneratedFunctionOperation.MAX -> extremumTest(functionName, parameters, largest = true)
+            GeneratedFunctionOperation.MIN -> extremumTest(functionName, parameters, largest = false)
+            GeneratedFunctionOperation.DIFFERENCE -> differenceTest(functionName, parameters)
+            GeneratedFunctionOperation.TEMPERATURE ->
+                temperatureTest(functionName, operation.fahrenheitToCelsius)
+            null -> when {
+                isSum && parameters.size == 2 && parameters.first().type == "Double" ->
+                    "ReturnsExpectedSum" to "assertEquals(4.0, $functionName(1.5, 2.5), 0.001)"
+                isSum -> "ReturnsExpectedSum" to "assertEquals(6, $functionName($arguments))"
+                isAverage ->
+                    "ReturnsExpectedAverage" to "assertEquals(2.0, $functionName($arguments), 0.0001)"
+                else -> "IsCallable" to
+                    "assertTrue(runCatching { $functionName($arguments) }.isSuccess)"
+            }
         }
         return "// Test für Funktion $functionName\n" +
             "class ${testClass}Test {\n" +
@@ -289,6 +526,46 @@ class CodeGenerator(private val tokenizer: BpeTokenizer) {
             "        $assertion\n" +
             "    }\n" +
             "}\n"
+    }
+
+    private fun temperatureTest(
+        functionName: String,
+        fahrenheitToCelsius: Boolean
+    ): Pair<String, String> {
+        val (input, expected) = if (fahrenheitToCelsius) {
+            "77.0" to "25.0"
+        } else {
+            "25.0" to "77.0"
+        }
+        return "ReturnsConvertedTemperature" to
+            "assertEquals($expected, $functionName($input), 0.0001)"
+    }
+
+    private fun extremumTest(
+        functionName: String,
+        parameters: List<Field>,
+        largest: Boolean
+    ): Pair<String, String> {
+        val decimal = parameters.singleOrNull()?.type == "List<Double>"
+        val values = if (decimal) "listOf(3.0, 8.0, 1.0)" else "listOf(3, 8, 1)"
+        val expected = if (largest) {
+            if (decimal) "8.0" else "8"
+        } else {
+            if (decimal) "1.0" else "1"
+        }
+        val name = if (largest) "ReturnsLargestValue" else "ReturnsSmallestValue"
+        return name to "assertEquals($expected, $functionName($values))"
+    }
+
+    private fun differenceTest(functionName: String, parameters: List<Field>): Pair<String, String> {
+        val decimal = parameters.firstOrNull()?.type == "Double"
+        val (first, second, expected) = if (decimal) {
+            Triple("5.0", "3.0", "2.0")
+        } else {
+            Triple("5", "3", "2")
+        }
+        return "ReturnsExpectedDifference" to
+            "assertEquals($expected, $functionName($first, $second))"
     }
 
     /** Setzt benötigte Imports vor die Implementierung, an die Kotlin-Dateisyntax es bindet. */
@@ -387,7 +664,8 @@ class CodeGenerator(private val tokenizer: BpeTokenizer) {
     private fun containsAny(p: String, keywords: List<String>): Boolean = TextPatterns.containsWord(p, keywords)
 
     /** Wandelt den ersten Buchstaben in Großschreibung um, ohne den restlichen Namen zu verändern. */
-    private fun capitalize(s: String): String = s.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+    private fun capitalize(s: String): String =
+        s.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
 
     /** Zeigt Token, ID und einen kurzen Embedding-Ausschnitt für den Eingabetext. */
     private fun generateTokenization(prompt: String): String {
@@ -417,6 +695,13 @@ class CodeGenerator(private val tokenizer: BpeTokenizer) {
             "ein", "eine", "einen", "einem", "einer", "eines", "namens", "name",
             "fuer", "für", "die", "der", "den", "dem", "das", "des", "zum", "zur", "for"
         )
+        val MAX_WORDS = listOf(
+            "maximum", "maximal", "groesste", "groessten", "groesster", "groesstes", "groest", "largest", "max"
+        )
+        val MIN_WORDS = listOf(
+            "minimum", "minimal", "kleinste", "kleinsten", "kleinster", "kleinstes", "smallest", "min"
+        )
+        val DIFFERENCE_WORDS = listOf("differenz", "difference", "delta", "subtraktion", "subtrahiere", "subtract")
         val SUM_WORDS = listOf("summe", "sum", "addiere", "addieren", "summiere", "summieren", "aufsummieren")
         val AVERAGE_WORDS = listOf("durchschnitt", "mittelwert", "average", "mean")
         val TWO_SCALAR_SUM_PATTERN = Regex("\\b(zwei|2|two)\\s+(zahlen?|werte?|preise?n?|betraege?n?)\\b")
@@ -425,7 +710,8 @@ class CodeGenerator(private val tokenizer: BpeTokenizer) {
         val CALCULATION_ACTION_PATTERN = Regex("\\b(berechn\\w*|calculate\\w*|ermittel\\w*)\\b")
         val SORTING_ACTION_PATTERN = Regex("\\b(sortier\\w*|ordne\\w*)\\b")
         val OPERATION_LABELS = setOf(
-            "summe", "summieren", "summiere", "durchschnitt", "mittelwert", "average", "mean"
+            "summe", "summieren", "summiere", "durchschnitt", "mittelwert", "average", "mean",
+            "maximum", "minimum", "differenz"
         )
     }
 }

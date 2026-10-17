@@ -28,7 +28,7 @@ class BpeTokenizer {
         mergeRules.clear()
         val sourceWords = corpus.flatMap { splitText(TextFold.fold(it)) }.filter { it.isNotBlank() }
         val wordSequences = sourceWords
-            .map { word -> word.map { it.toString() }.toMutableList().apply { add(endOfWord) } }
+            .map { word -> symbolsFor(word) }
             .toMutableList()
 
         val pairCounts = countPairs(wordSequences)
@@ -44,12 +44,17 @@ class BpeTokenizer {
 
     /** Zerlegt normalisierten Text per gelernter Merge-Regeln in Subwörter. */
     fun tokenize(text: String): List<String> = synchronized(tokenizerLock) {
-        splitText(TextFold.fold(text)).flatMap { encodeWord(it) }
+        tokenizeTokens(text)
     }
 
     /** Wandelt dieselbe Tokenfolge in die zugehörigen Vokabular-IDs um. */
     fun encode(text: String): List<Int> = synchronized(tokenizerLock) {
-        tokenize(text).map { tokenId(it) }
+        tokenizeTokens(text).map { tokenToId[it] ?: tokenToId[unkToken] ?: 0 }
+    }
+
+    /** Liefert Tokens und IDs gemeinsam, ohne dass zwischen den Abbildungen neu trainiert werden kann. */
+    fun tokenizeWithIds(text: String): List<Pair<String, Int>> = synchronized(tokenizerLock) {
+        tokenizeTokens(text).map { token -> token to (tokenToId[token] ?: tokenToId[unkToken] ?: 0) }
     }
 
     /** Die ID 0 ist der definierte Ersatz für unbekannte Token. */
@@ -338,7 +343,7 @@ class BpeTokenizer {
     /** Wendet die Merge-Regeln in ihrer Lernreihenfolge auf ein Wort an. */
     private fun encodeWord(word: String): List<String> {
         val lowered = word.lowercase()
-        var symbols = lowered.map { it.toString() }.toMutableList().apply { add(endOfWord) }
+        var symbols = symbolsFor(lowered)
         for (mergeRule in mergeRules) {
             if (symbols.size < 2) break
             val firstMatch = (0 until symbols.lastIndex).firstOrNull { index ->
@@ -360,6 +365,22 @@ class BpeTokenizer {
         }
         val merged = symbols.map { it.removeSuffix(endOfWord) }.filter { it.isNotEmpty() }
         return if (merged.isEmpty()) listOf(unkToken) else merged
+    }
+
+    private fun tokenizeTokens(text: String): List<String> =
+        splitText(TextFold.fold(text)).flatMap(::encodeWord)
+
+    /** Keeps supplementary Unicode characters intact instead of splitting their UTF-16 surrogate pairs. */
+    private fun symbolsFor(word: String): MutableList<String> {
+        val symbols = mutableListOf<String>()
+        var offset = 0
+        while (offset < word.length) {
+            val codePoint = word.codePointAt(offset)
+            symbols.add(String(Character.toChars(codePoint)))
+            offset += Character.charCount(codePoint)
+        }
+        symbols.add(endOfWord)
+        return symbols
     }
 
     /** Zählt alle benachbarten Symbole und dient dem BPE-Schritt zur Wahl des häufigsten Paars. */

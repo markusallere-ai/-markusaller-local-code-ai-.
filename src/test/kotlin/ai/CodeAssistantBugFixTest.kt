@@ -63,6 +63,65 @@ class CodeAssistantBugFixTest {
     }
 
     @Test
+    fun naturalTemperatureQuestionReturnsTheCalculatedValueWithoutClarification() {
+        val assistant = isolatedAssistant()
+
+        assertEquals(Intent.GenerateFunction, assistant.classifyIntent("Was sind 20 Grad in Fahrenheit?"))
+        val result = assistant.handleConversationTurn("Was sind 20 Grad in Fahrenheit?")
+
+        assertTrue(result.response.contains("20 °C entsprechen 68 °F"), result.response)
+        assertFalse(result.awaitingClarification)
+    }
+
+    @Test
+    fun changedTemperatureValueDoesNotReuseFuzzyAnswerForEarlierValue() {
+        val assistant = isolatedAssistant()
+        assistant.storeKnowledge(
+            "Was sind 20 Grad in Fahrenheit?",
+            "20 °C entsprechen 68 °F."
+        )
+
+        val result = assistant.handleConversationTurn("was sind 25 grad in fahrenheit")
+
+        assertTrue(result.response.contains("25 °C entsprechen 77 °F"), result.response)
+        assertFalse(result.response.contains("20 °C entsprechen 68 °F"), result.response)
+        assertFalse(result.awaitingClarification)
+    }
+
+    @Test
+    fun numericTemperatureCalculationOverridesExactSavedAnswer() {
+        val assistant = isolatedAssistant()
+        assistant.storeKnowledge(
+            "Was sind 20 Grad in Fahrenheit?",
+            "GESPEICHERTE ERKLAERUNG MIT 68 GRAD"
+        )
+
+        val response = assistant.handlePrompt("Was sind 20 Grad in Fahrenheit?")
+
+        assertEquals("20 °C entsprechen 68 °F.", response)
+        assertFalse(response.contains("GESPEICHERTE ERKLAERUNG"), response)
+    }
+
+    @Test
+    fun temperatureQuestionSupportsReverseDirectionAndDecimalComma() {
+        val assistant = isolatedAssistant()
+
+        val response = assistant.handlePrompt("Was sind 20,5 Fahrenheit in Celsius?")
+
+        assertTrue(response.contains("20.5 °F entsprechen -6.39 °C"), response)
+    }
+
+    @Test
+    fun explicitTemperatureFunctionRequestStillGeneratesKotlin() {
+        val response = isolatedAssistant().handlePrompt(
+            "Erstelle eine Funktion, die 20 Celsius in Fahrenheit umrechnet"
+        )
+
+        assertTrue(response.contains("fun celsiusToFahrenheit(celsius: Double): Double"), response)
+        assertFalse(response.contains("20 °C entsprechen"), response)
+    }
+
+    @Test
     fun specializedExampleRoutingDoesNotOverrideClassNamesOrClassFields() {
         val assistant = isolatedAssistant()
         val cases = listOf(

@@ -43,10 +43,14 @@ data class AssistantConfig(
     fun brainStateFile(): Path = storagePath.resolve("brain_state.json")
     /** Pfad des optional gespeicherten Feedforward-Modells. */
     fun feedforwardModelFile(): Path = storagePath.resolve("feedforward_model.json")
+    /** Pfad des separat trainierten experimentellen Transformer-Chatmodells. */
+    fun transformerChatModelFile(): Path = storagePath.resolve("transformer_chat_model.json")
     /** Pfad der dauerhaft gespeicherten Prompt-Antwort-Beispiele. */
     fun knowledgeFile(): Path = storagePath.resolve("knowledge.jsonl")
     /** Pfad der gelabelten Intent-Trainingsbeispiele. */
     fun trainingExamplesFile(): Path = storagePath.resolve("training_examples.jsonl")
+    /** Pfad gespeicherter Schachpartien. */
+    fun chessGamesFile(): Path = storagePath.resolve("chess_games.jsonl")
     /** Fingerprint zur Erkennung eines veralteten Tokenizer-Zustands. */
     fun tokenizerFingerprintFile(): Path = storagePath.resolve("tokenizer_vocab.hash")
     /** Fingerprint zur Erkennung veralteter Skip-Gram-Embeddings. */

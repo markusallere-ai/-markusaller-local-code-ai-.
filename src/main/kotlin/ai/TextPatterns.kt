@@ -23,6 +23,16 @@ internal object TextPatterns {
             RegexOption.IGNORE_CASE
         )
     val PI_PRECISION = Regex("\\b(\\d{1,4})\\s*(stellen|digits|dezimal|decimal)?\\b", RegexOption.IGNORE_CASE)
+    private val TEMPERATURE_WORDS =
+        listOf("celsius", "fahrenheit", "temperatur", "temperature")
+    private val TEMPERATURE_CONVERSION_ACTIONS = listOf(
+        "umrechnen", "umrechne", "umrechnet", "convert", "konvertiere", "konvertier",
+        "wandle", "umwandeln", "rechne", "rechnen", "berechne"
+    )
+    private val NUMERIC_TEMPERATURE_DESTINATION =
+        Regex("\\b(in|zu|nach|to)\\s+(?:grad\\s+)?(?:fahrenheit|celsius)\\b|°\\s*[fc]\\b")
+    private val NUMERIC_TEMPERATURE_VALUE =
+        Regex("(?<![\\p{L}\\p{N}_])[+-]?\\d+(?:[.,]\\d+)?(?![\\p{L}\\p{N}_])")
 
     private val KOTLIN_KEYWORDS = setOf(
         "as", "break", "class", "continue", "do", "else", "false", "for", "fun",
@@ -34,6 +44,19 @@ internal object TextPatterns {
     /** Prüft ganze Wörter statt beliebiger Teilzeichenfolgen, damit ähnliche Begriffe nicht versehentlich matchen. */
     fun containsWord(text: String, words: List<String>): Boolean =
         words.any { word -> Regex("\\b${Regex.escape(word)}\\b", RegexOption.IGNORE_CASE).containsMatchIn(text) }
+
+    /** Erfordert sowohl einen Temperaturbegriff als auch eine ausdrückliche Umrechnungsaktion. */
+    fun isTemperatureConversionRequest(text: String): Boolean =
+        containsTemperatureTerm(text) && containsWord(text, TEMPERATURE_CONVERSION_ACTIONS)
+
+    fun containsTemperatureTerm(text: String): Boolean =
+        containsWord(text, TEMPERATURE_WORDS)
+
+    /** Recognizes a numeric temperature question with an explicit destination scale. */
+    fun isNumericTemperatureQuestion(text: String): Boolean =
+        containsTemperatureTerm(text) &&
+            NUMERIC_TEMPERATURE_VALUE.containsMatchIn(text) &&
+            NUMERIC_TEMPERATURE_DESTINATION.containsMatchIn(text)
 
     /** Verhindert leere Namen und ergänzt bei Kotlin-Schlüsselwörtern ein neutrales Suffix. */
     fun sanitizeKotlinIdentifier(name: String): String {

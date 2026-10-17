@@ -1,0 +1,176 @@
+CodeAssistant, Codegenerator und Tokenizer: Recherche- und Arbeitsnotizen
+Stand: 2026-10-17
+
+Zweck
+-----
+Dieses Dokument trennt verifizierte Eigenschaften des vorliegenden Codes von
+allgemeinen Aussagen aus Primärquellen und von Empfehlungen. Es ist keine
+Leistungs- oder Sicherheitszertifizierung.
+
+
+1. Verifizierte Architektur im Repository
+-----------------------------------------
+- CodeAssistant ist die Fassade für Gesprächsauflösung, Intent-Klassifikation,
+  Wissensabruf, Codegenerierung, Tokenisierung und Evaluation.
+- Die Anfrageauflösung bevorzugt zuerst exaktes gespeichertes Wissen. Danach
+  kommen Klassifikation, spezialisierte Beispiele, eingeschränktes Fuzzy-Wissen
+  und schließlich der regelbasierte Generator.
+- IntentClassifier wertet explizite Regeln vor dem überwachten Fallback aus.
+  Unbekannte Eingaben erhalten ohne Treffer Intent.Unknown.
+- CodeGenerator erzeugt Kotlin-Quelltext über Regeln und Templates. Der
+  Antwortpfad verwendet kein allgemeines externes LLM.
+- BpeTokenizer faltet den Text, trennt Buchstaben-/Zahlenfolgen und
+  Satzzeichen und lernt darauf Zeichenpaar-Merges. Das ist ein
+  wort-vorsegmentierter BPE-Ansatz und keine Byte-Level-Tokenisierung.
+- Die Tokenizer-Vektoren sind 32-dimensional. Die Initialisierung ist
+  reproduzierbar; semantische Trainingsanpassung findet nur im separaten
+  Skip-Gram-Schritt statt.
+- Tokenizerzugriffe, Training und Laden verwenden denselben internen Monitor.
+  tokenizeWithIds liefert die Textstücke und IDs nun atomar aus derselben
+  Vokabularmomentaufnahme.
+
+
+2. Recherchierte technische Fakten
+----------------------------------
+- Sennrich, Haddow und Birch beschreiben Subword Units als praktische Antwort
+  auf seltene und unbekannte Wörter in maschineller Übersetzung. Das belegt
+  den Nutzen des Subword-Prinzips, aber nicht die Qualität dieses konkreten
+  kleinen Tokenizers.
+- Die Java-17-Dokumentation stellt klar, dass String UTF-16-Codeeinheiten
+  enthält und supplementary characters als Surrogatpaare dargestellt werden.
+  Codepoint-basierte Verarbeitung vermeidet, ein solches Zeichen als zwei
+  unabhängige Zeichen zu behandeln.
+- SentencePiece beschreibt Modelle für BPE und Unigram-Tokenisierung direkt
+  auf Rohtext und unterstützt verlustfreies Decodieren. Der Repository-
+  Tokenizer hat keinen Decoder und erhält keine ursprünglichen Whitespaces;
+  er ist deshalb nicht mit SentencePiece gleichzusetzen.
+- Tokenizer-Pipelines trennen üblicherweise Normalisierung, Pre-Tokenisierung
+  und Tokenmodell. Das Repository hat diese Schritte, aber nicht als
+  austauschbare Komponenten: TextFold und splitText sind fest eingebaut.
+- Kotlin maxOrNull/minOrNull liefern null für leere Collections. Die
+  generierten MAX/MIN-Funktionen prüfen die leere Liste zuvor mit require,
+  damit kein stiller Ersatzwert als echtes Maximum/Minimum ausgegeben wird.
+
+Quellen (abgerufen am 2026-10-17)
+--------------------------------
+1. Sennrich et al., ACL 2016, Neural Machine Translation of Rare Words with
+   Subword Units: https://aclanthology.org/P16-1162/
+2. Oracle Java SE 17, String und UTF-16/Codepoints:
+   https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html
+3. Oracle Java SE 17, Character und supplementary codepoints:
+   https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Character.html
+4. Google SentencePiece README:
+   https://github.com/google/sentencepiece/blob/master/README.md
+5. Hugging Face Tokenizers, Komponenten und Vorverarbeitung:
+   https://huggingface.co/docs/tokenizers/en/components
+6. Kotlin Standard Library, maxOrNull:
+   https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.collections/max-or-null.html
+7. Kotlin Compiler-Referenz:
+   https://kotlinlang.org/docs/compiler-reference.html
+
+
+3. Umgesetzte Fehlerkorrekturen und Verhalten
+---------------------------------------------
+- Unicode-Supplementary-Zeichen werden bei der BPE-Zeichensymbolisierung als
+  Codepoints statt als einzelne UTF-16-Codeeinheiten verarbeitet.
+- Token und ID werden in einer atomaren Tokenizer-Abfrage gemeinsam erzeugt.
+  CodeAssistant nutzt das für TokenEmbeddingResult.
+- Temperaturumrechnungen erkennen beide Richtungen. Die Richtung wird beim
+  Testgenerator aus dem Prompt-Kontext übernommen und nicht mehr aus dem
+  frei wählbaren Funktionsnamen geraten.
+- Max-/Min-Testfälle übernehmen den abgeleiteten Listentyp. Dezimalwerte für
+  Preise/Beträge/ausdrückliche Double-Angaben erzeugen Double-Listen und
+  passende Double-Assertions; das unspezifische Wort "Wert" allein erzwingt
+  keinen Double-Typ.
+- Differenztests übernehmen ebenfalls Int- oder Double-Parameter und passende
+  konkrete Beispielwerte.
+- Deutsche gebeugte Varianten von "größte"/"kleinste" werden durch
+  Klassifikator und Generator erkannt.
+- Celsius-/Fahrenheit-Wörter allein lösen keine Funktionsklassifikation mehr
+  aus. Klassifikator und Generator verwenden dieselbe gemeinsame Regel, die
+  zusätzlich ein Umrechnungsverb verlangt. Der überwachte Fallback wird für
+  eine reine Temperaturwort-Eingabe ebenfalls daran gehindert,
+  GenerateFunction auszugeben; explizite Erklärungsregeln bleiben vorrangig.
+- Numerische Temperaturfragen mit Zielskala werden vor dem Fuzzy-Wissensabruf
+  erkannt und direkt berechnet. Dadurch darf eine gespeicherte Antwort für
+  "20 Grad" nicht irrtümlich eine spätere Frage zu "40 Grad" beantworten.
+  Werte mit Dezimalkomma werden akzeptiert; Fahrenheit-zu-Celsius-Ergebnisse
+  werden auf zwei Nachkommastellen gerundet.
+- Für numerische Temperaturfragen hat die Berechnung Vorrang auch vor einem
+  exakten gespeicherten Prompt-Antwort-Eintrag. Gespeicherte Erläuterungen
+  können so eine aktuelle Berechnung nicht überdecken.
+- Ein Windows-Launcher kann dennoch ältere Regeln ausführen, wenn neben ihm
+  eine veraltete `Markusaller.jar` liegt und diese vor
+  `build\\libs\\Markusaller.jar` priorisiert wird. Der Repository-Launcher
+  bevorzugt jetzt den Projekt-Build und nutzt die daneben liegende JAR nur
+  als Fallback. Eine bereits laufende JVM muss geschlossen und neu gestartet
+  werden, damit sie den neu gebauten Code verwendet.
+
+
+4. Bewusste Grenzen und offene Risiken
+--------------------------------------
+- BPE-Ergebnisse sind durch Unicode-Codepoints robuster, aber nicht
+  byte-complete: unbekannte Zeichen, die nicht im Vokabular liegen, können
+  weiterhin auf <unk> abgebildet werden.
+- Gleichstände bei gleich häufigen BPE-Paaren werden derzeit in der
+  Einfügereihenfolge der Pair-Map aufgelöst. Eine lexikografische,
+  korpusreihenfolge-unabhängige Tie-Break-Regel wurde ausprobiert, aber nicht
+  behalten: der vollständige Test für paraphrasierten Wissensabruf fiel damit
+  von seiner Mindestähnlichkeit 0.90 auf 0.8993548112605437. Der Versuch zeigt,
+  dass Tokenizer-Merge-Reihenfolge Folgewerte der Embeddings und damit
+  Nutzungsverhalten beeinflusst. Eine künftige Änderung braucht entweder eine
+  migration-/fingerprintbewusste Lösung oder eine separate, nicht abgeschwächte
+  Validierung der Wissensabrufqualität.
+- tokenize/encode verwerfen Whitespace und der Tokenizer stellt den Originaltext
+  nicht wieder her. Für Source-Code- oder Textbearbeitung wäre eine
+  offsets-/lossless-Tokenisierung nötig.
+- Skip-Gram auf dem kleinen eingebauten Korpus beweist kein semantisches
+  Sprachverständnis. Die dokumentierte Embedding-Evaluation ist klein und
+  nicht unabhängig; siehe docs/EVALUATION.md.
+- Regelbasierte Generierung bleibt durch bekannte Schlüsselwörter beschränkt.
+  Unbekannte Aufgaben können zu TODO-Stubs oder zu konservativen Templates
+  führen. Kompilierbarkeit bedeutet nicht fachliche Korrektheit.
+- Typableitung aus natürlicher Sprache bleibt heuristisch. Bei Anforderungen,
+  in denen Int/Double oder Konvertierungsrichtung unklar sind, wäre eine
+  Rückfrage besser als stillschweigende Vermutung.
+- BPE-Training ist für einen kleinen lokalen Korpus gedacht. Es gibt hier
+  keinen Benchmark für große Korpora, Laufzeit oder Speicherverbrauch.
+- Die Java-/Hugging-Face-/SentencePiece-Quellen erklären allgemeine Grundlagen;
+  sie sind keine Messung dieses Projekts und schreiben keine konkrete
+  Implementierung vor.
+
+
+5. Bewertete nächste Schritte
+-----------------------------
+Hoher Nutzen / geringes Risiko:
+- mehr Regressionstests für gebeugte deutsche und englische Prompts;
+- generated-source-Compilation für jede neue Templatefamilie;
+- ein unabhängiger, unveröffentlichter Holdout-Satz für Intent- und
+  Antwortqualität, getrennt von Training und Threshold-Tuning.
+
+Nur mit messbarem Bedarf:
+- Laufzeit-/Speicherbenchmark für BPE-Training und Tokenisierung auf
+  realistischen Korpusgrößen;
+- lossless/offset-aware Tokenisierung, falls Nutzer Code oder Text exakt
+  rekonstruieren bzw. annotieren sollen;
+- Austausch des Tokenizers durch SentencePiece oder ein anderes Modell erst
+  nach Vergleich von Qualität, Paketgröße, JVM-Integration und Offlinebetrieb.
+
+Python ist für Korpusaufbereitung und Experimente möglich, aber als zusätzliche
+Pflichtlaufzeit würde es für die aktuelle lokale Kotlin-Anwendung Installation,
+Verteilung und Fehlerbehandlung verkomplizieren. Eine Migration sollte nur
+aufgrund reproduzierbarer Qualitäts- oder Performance-Messungen erfolgen.
+
+
+6. Verifikation dieses Änderungsstands
+--------------------------------------
+Fokussierter Lauf:
+  .\gradlew.bat test --tests ai.CodeGeneratorTest --tests ai.TokenizerStateValidationTest detekt --no-daemon
+
+Vollständige Verifikation nach Abschluss der Änderungen:
+  .\gradlew.bat test detekt shadowJar --no-daemon
+
+Zusätzlich wurde git diff --check verwendet. Ergebnisse und konkrete
+Testzahlen gehören in den Abschlussbericht des jeweiligen Laufs; dieses
+Dokument behauptet keine nicht ausgeführten Benchmarks oder unabhängigen
+Qualitätsmessungen.

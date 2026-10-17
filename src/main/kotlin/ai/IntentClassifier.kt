@@ -21,15 +21,28 @@ class IntentClassifier(
     fun classifyWithDetails(prompt: String): IntentPrediction {
         val normalized = normalize(prompt)
         val requestsCreation = CREATION_PATTERN.containsMatchIn(normalized)
-        if (isShortGreeting(normalized) && !hasTaskIntentWords(normalized, requestsCreation)) {
+        if (ConversationResponder.isSmalltalk(normalized) &&
+            !hasTaskIntentWords(normalized, requestsCreation)
+        ) {
             return rulePrediction(Intent.Smalltalk)
         }
-        return classifyByRule(normalized, requestsCreation)
-            ?: supervisedClassifier(normalized)
-            ?: IntentPrediction(Intent.Unknown, 0.0, "none")
+        classifyByRule(normalized, requestsCreation)?.let { return it }
+        if (BARE_NUMERIC_FOLLOW_UP_PATTERN.matches(normalized)) {
+            return IntentPrediction(Intent.Unknown, 0.0, "numeric-context-required")
+        }
+        val supervised = supervisedClassifier(normalized)
+        if (
+            supervised?.intent == Intent.GenerateFunction &&
+            TextPatterns.containsTemperatureTerm(normalized) &&
+            !TextPatterns.isTemperatureConversionRequest(normalized)
+        ) {
+            return IntentPrediction(Intent.Unknown, 0.0, "temperature-action-required")
+        }
+        return supervised ?: IntentPrediction(Intent.Unknown, 0.0, "none")
     }
 
     /** Behandelt explizite Wortmuster vor dem statistischen Modell, damit klare Aufgaben stabil bleiben. */
+    @Suppress("ComplexMethod")
     private fun classifyByRule(normalized: String, requestsCreation: Boolean): IntentPrediction? {
         val intent = when {
             TextPatterns.containsWord(normalized, TOKEN_WORDS) -> Intent.Tokenize
@@ -38,7 +51,12 @@ class IntentClassifier(
             TextPatterns.containsWord(normalized, DATA_CLASS_WORDS) || normalized.contains("data class") ->
                 Intent.GenerateDataClass
             TextPatterns.containsWord(normalized, CLASS_WORDS) -> Intent.GenerateClass
-            TextPatterns.containsWord(normalized, FUNCTION_WORDS) -> Intent.GenerateFunction
+            TextPatterns.containsWord(normalized, FUNCTION_WORDS) ||
+                TextPatterns.containsWord(normalized, MAX_WORDS) ||
+                TextPatterns.containsWord(normalized, MIN_WORDS) ||
+                TextPatterns.containsWord(normalized, DIFFERENCE_WORDS) ||
+                TextPatterns.isNumericTemperatureQuestion(normalized) ||
+                TextPatterns.isTemperatureConversionRequest(normalized) -> Intent.GenerateFunction
             TextPatterns.containsWord(normalized, MODEL_WORDS) &&
                 TextPatterns.containsWord(normalized, DATA_FIELD_WORDS) -> Intent.GenerateDataClass
             else -> return null
@@ -46,17 +64,22 @@ class IntentClassifier(
         return rulePrediction(intent)
     }
 
-    /** Akzeptiert nur kurze Begrüßungen, damit Begrüßung plus konkrete Aufgabe kein Smalltalk wird. */
-    private fun isShortGreeting(normalized: String): Boolean =
-        normalized.split(" ").count(String::isNotBlank) <= MAX_SMALLTALK_WORDS &&
-            GREETING_PATTERN.containsMatchIn(normalized)
-
     /** Prüft, ob trotz Begrüßung ein Wort für eine konkrete Aufgabe enthalten ist. */
     private fun hasTaskIntentWords(normalized: String, requestsCreation: Boolean): Boolean =
         requestsCreation ||
             asksForExplanation(normalized) ||
-            listOf(TOKEN_WORDS, TEST_WORDS, DATA_CLASS_WORDS, CLASS_WORDS, FUNCTION_WORDS)
-                .any { TextPatterns.containsWord(normalized, it) }
+            TextPatterns.isTemperatureConversionRequest(normalized) ||
+        listOf(
+            TOKEN_WORDS,
+            TEST_WORDS,
+            DATA_CLASS_WORDS,
+            CLASS_WORDS,
+            FUNCTION_WORDS,
+            MAX_WORDS,
+            MIN_WORDS,
+            DIFFERENCE_WORDS
+        )
+            .any { TextPatterns.containsWord(normalized, it) }
 
     /** Erkennt Erklärungsfragen nur anhand der unterstützten expliziten Muster und Code-Themen. */
     private fun asksForExplanation(normalized: String): Boolean =
@@ -74,7 +97,6 @@ class IntentClassifier(
         .replace(TextPatterns.WHITESPACE, " ").trim()
 
     companion object {
-        private const val MAX_SMALLTALK_WORDS = 4
         private val QUESTION_PREFIXES =
             listOf("was ", "wie ", "warum ", "wieso ", "weshalb ", "wodurch ", "welche ursache")
         private val TOKEN_WORDS = listOf("token", "tokens", "tokenisiere", "tokenizer", "tokenize", "vokabular")
@@ -83,11 +105,23 @@ class IntentClassifier(
         private val DATA_CLASS_WORDS = listOf("datenklasse", "data-class")
         private val CLASS_WORDS = listOf("klasse", "class")
         private val FUNCTION_WORDS = listOf("funktion", "function", "fun")
+        private val MAX_WORDS = listOf(
+            "maximum", "maximal", "groesste", "groessten", "groesster", "groesstes",
+            "groest", "largest", "max", "maximums"
+        )
+        private val MIN_WORDS = listOf(
+            "minimum", "minimal", "kleinste", "kleinsten", "kleinster", "kleinstes",
+            "smallest", "min", "minimums"
+        )
+        private val DIFFERENCE_WORDS = listOf(
+            "differenz", "difference", "delta", "subtraktion", "subtrahiere", "subtract"
+        )
         private val MODEL_WORDS = listOf("modell")
         private val DATA_FIELD_WORDS = listOf("name", "email", "feld", "felder")
-        private val GREETING_PATTERN = Regex("\\b(hallo|hi|hey|servus|moin|na|guten\\s+(morgen|tag|abend))\\b")
         private val EXPLANATION_PATTERN = Regex("\\b(erklaer\\w*|erlaeuter\\w*|beschreib\\w*|versteh\\w*)\\b")
         private val EXPLICIT_EXPLANATION_QUESTION_PATTERN = Regex("\\b(was steckt hinter|was bedeutet)\\b")
+        private val BARE_NUMERIC_FOLLOW_UP_PATTERN =
+            Regex("^(?:und\\s+)?[+-]?\\d+(?:[.,]\\d+)?(?:\\s*(?:grad|°[fc]))?$")
         private val CODE_EXPLANATION_TOPIC_PATTERN =
             Regex(
                 "\\b(data class|kotlin|code|klasse|datenklasse|methode|funktion|" +

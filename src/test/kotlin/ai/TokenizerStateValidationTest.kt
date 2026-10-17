@@ -6,6 +6,7 @@ import kotlinx.serialization.SerializationException
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 
 /** Verifies tokenizer snapshot schema checks and atomic rejection of invalid state. */
 class TokenizerStateValidationTest {
@@ -25,6 +26,17 @@ class TokenizerStateValidationTest {
         assertEquals(5, tokenizer.tokenize("alpha").size)
         assertEquals(32, tokenizer.embeddingDimension())
         assertEquals(0, tokenizer.tokenId("not-in-vocabulary"))
+    }
+
+    @Test
+    fun tokenizerReturnsTokensAndIdsFromTheSameVocabularySnapshot() {
+        val tokenizer = BpeTokenizer()
+        tokenizer.train(listOf("alpha beta alpha beta"), maxMergeRules = 10)
+        val encoded = tokenizer.tokenizeWithIds("alpha beta unknown")
+
+        assertEquals(tokenizer.tokenize("alpha beta unknown"), encoded.map { it.first })
+        assertEquals(tokenizer.encode("alpha beta unknown"), encoded.map { it.second })
+        assertTrue(encoded.all { (token, id) -> tokenizer.tokenId(token) == id })
     }
 
     @Test

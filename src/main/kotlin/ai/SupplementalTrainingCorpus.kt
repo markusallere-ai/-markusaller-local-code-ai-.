@@ -2,7 +2,8 @@ package ai
 
 /** Ergänzende, satzgetrennte Sprach- und Programmierbeispiele für Tokenizer und Skip-Gram. */
 internal object SupplementalTrainingCorpus {
-    val sentences = listOf(
+    /** Stable topical examples keep the established embedding relationships intact. */
+    val embeddingSentences = listOf(
         "Kotlin und Java laufen typischerweise auf der Java Virtual Machine.",
         "C# wird häufig zusammen mit dem .NET Ökosystem verwendet.",
         "C und C++ werden oft für native Programme eingesetzt.",
@@ -67,4 +68,78 @@ internal object SupplementalTrainingCorpus {
         "Eine Vorlage kann gültigen Beispielcode erzeugen, versteht aber keine beliebige Absicht.",
         "Eine klare Grenze zwischen Heuristik und gelerntem Modell macht Verhalten überprüfbar."
     )
+
+    val conversationSentences = listOf(
+        "Ein Gespräch beginnt oft mit einer Begrüßung und einer offenen Frage.",
+        "Eine freundliche Antwort lädt zu einer passenden Rückfrage ein.",
+        "Menschen stellen Fragen, ergänzen Informationen und korrigieren Missverständnisse.",
+        "Eine Folgefrage im Gespräch bezieht sich häufig auf ein Thema aus der vorherigen Nachricht.",
+        "Kurze Wörter wie das oder dort brauchen manchmal den Kontext des Gesprächs.",
+        "Ein Gesprächsverlauf kann die letzten Fragen und Antworten festhalten.",
+        "Ein lokaler Assistent sollte ehrlich sagen, wenn ihm eine Antwort fehlt.",
+        "Eine Rückfrage hilft, fehlende Angaben vor einer Antwort zu klären.",
+        "Eine Bestätigung sollte nur die unmittelbar offene Frage beantworten.",
+        "Eine Absage beendet einen Vorschlag, ohne ihn dauerhaft zu speichern.",
+        "Danke und bitte sind häufige Wörter in einer höflichen Unterhaltung.",
+        "Guten Morgen ist eine verbreitete Begrüßung am Anfang des Tages.",
+        "Auf Wiedersehen und bis bald beenden ein Gespräch freundlich.",
+        "Wie geht es dir ist eine persönliche Frage im alltäglichen Gespräch.",
+        "Mir geht es gut ist eine kurze Antwort auf eine Begrüßungsfrage.",
+        "Was kannst du fragen Nutzer oft zu den Fähigkeiten eines Assistenten.",
+        "Eine klare Beschreibung nennt Fähigkeiten und bekannte Grenzen.",
+        "Ein Assistent ohne Webzugriff sollte keine aktuellen Nachrichten erfinden.",
+        "Eine lokale Anwendung kann persönliche Daten auf dem eigenen Gerät behalten.",
+        "Ein Nutzer kann eine Antwort wiederholen lassen, wenn sie nicht mehr sichtbar ist.",
+        "Die Frage worüber haben wir gesprochen verlangt einen Blick auf den Gesprächskontext.",
+        "Eine hilfreiche Folgeantwort bezieht sich auf das aktuelle Gesprächsthema.",
+        "Wenn der Bezug unklar ist, sollte der Assistent gezielt nachfragen.",
+        "Ein Gespräch muss nicht bei jedem Satz von vorne beginnen.",
+        "Ein neuer Themenwechsel sollte eine offene Rückfrage nicht versehentlich beantworten.",
+        "Eine Begrüßung kann mit einer konkreten technischen Aufgabe verbunden sein.",
+        "Bei einer verbundenen Begrüßung soll die technische Aufgabe Vorrang behalten.",
+        "Eine freundliche Bestätigung kann ein Gespräch fortsetzen.",
+        "Ein Gesprächsbeispiel enthält mehrere zusammengehörige Nachrichten.",
+        "Der Nutzer fragt nach einer Erklärung und ergänzt danach ein konkretes Beispiel.",
+        "Der Assistent kann nach der Programmiersprache oder dem gewünschten Ergebnis fragen.",
+        "Ein Codebeispiel sollte erklären, welche Eingaben und Ausgaben erwartet werden.",
+        "Eine Temperaturumrechnung kann im nächsten Schritt einen neuen Zahlenwert verwenden.",
+        "Bei einer Folgefrage kann die zuvor genannte Zieleinheit weiter gelten.",
+        "Zwanzig Grad Celsius entsprechen achtundsechzig Grad Fahrenheit.",
+        "Dreißig Grad Celsius entsprechen sechsundachtzig Grad Fahrenheit.",
+        "Eine Umrechnung von Fahrenheit in Celsius verwendet eine andere Rechenrichtung.",
+        "Ein Gespräch kann einen Fehlerbericht und die zugehörige Korrektur enthalten.",
+        "Eine gute Fehlermeldung nennt den nächsten sinnvollen Prüfschritt.",
+        "Wenn ein Beispiel fehlt, kann der Nutzer einen kleinen Ausschnitt teilen.",
+        "Ein Lernhinweis wird erst nach ausdrücklicher Zustimmung dauerhaft gespeichert.",
+        "Gespeichertes Beispielwissen ist von einem trainierten Sprachmodell zu unterscheiden.",
+        "Ein Korpus mit mehr Formulierungen verbessert die Tokenabdeckung, nicht automatisch die Antworten.",
+        "Ein Trainingssatz ist keine Garantie für eine richtige Antwort auf jede Frage.",
+        "Varianten einer Frage helfen Regeln und Klassifikatoren bei der Erkennung.",
+        "Großschreibung und Satzzeichen können bei der Suche vereinheitlicht werden.",
+        "Umlaute und alternative Schreibweisen kommen in deutschen Nachrichten vor.",
+        "Eine Nachricht kann mehrere Sätze und Zeilen enthalten.",
+        "Ein kurzer Dialog besteht aus abwechselnden Fragen und Antworten.",
+        "Ein Thema kann sich während eines längeren Gesprächs ändern.",
+        "Eine Gesprächszusammenfassung sollte sich auf tatsächlich Gesagtes stützen.",
+        "Ein Assistent sollte keine Gefühle oder persönlichen Erfahrungen vortäuschen.",
+        "Eine natürliche Antwort kann freundlich sein und trotzdem Grenzen offenlegen.",
+        "Ein Nutzer kann um eine kürzere oder genauere Antwort bitten.",
+        "Eine Wiederholung sollte die letzte Antwort und nicht eine ältere Antwort ausgeben.",
+        "Ein Zurücksetzen beendet den flüchtigen Gesprächskontext der aktuellen Sitzung.",
+        "Der lokale Gesprächsverlauf kann getrennt vom gespeicherten Fachwissen verwaltet werden.",
+        "Ein Vorschlag zur Wissensspeicherung braucht eine eindeutige Bestätigung.",
+        "Eine unabhängige neue Anfrage sollte nicht als Erklärung für einen alten Begriff gelten.",
+        "Alltagssprache enthält Fragen, Antworten, Bitten, Grüße und Dank.",
+        "Ein robustes Dialogsystem erkennt auch kurze und umgangssprachliche Formulierungen.",
+        "Ein unbekannter Ausdruck kann nach einer kurzen Erklärung erneut geprüft werden.",
+        "Ein Assistent kann sagen, welche Arten von Code er zuverlässig erzeugt.",
+        "Kotlin-Funktionen, Datenklassen und Tests sind unterstützte Aufgaben.",
+        "Eine lokale Vorlage kann nützlich sein, obwohl sie kein frei trainiertes Sprachmodell ist.",
+        "Eine konkrete Frage lässt sich oft besser beantworten als ein einzelnes Stichwort.",
+        "Nach einer Antwort kann eine gezielte Folgefrage den nächsten Schritt bestimmen.",
+        "Ein Gespräch soll den Bezug zum vorherigen Thema nur dann verwenden, wenn er eindeutig ist.",
+        "Ein neuer Zahlenwert kann die vorherige Umrechnungsrichtung eines Gesprächs fortsetzen."
+    )
+
+    val sentences = embeddingSentences + conversationSentences
 }

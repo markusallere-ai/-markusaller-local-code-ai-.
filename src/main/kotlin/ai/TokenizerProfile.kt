@@ -13,7 +13,9 @@ internal object TokenizerTrainingDefaults {
 internal class TokenizerProfile(
     private val config: AssistantConfig,
     private val tokenizer: BpeTokenizer,
-    private val defaultCorpus: List<String>
+    private val defaultCorpus: List<String>,
+    private val defaultTokenizerCorpus: List<String> = defaultCorpus,
+    private val defaultEmbeddingCorpus: List<String> = defaultTokenizerCorpus
 ) {
     private val tokenizerFile = config.tokenizerFile()
     private val corpusFile = config.tokenizerCorpusFile()
@@ -22,17 +24,21 @@ internal class TokenizerProfile(
 
     fun initialize() {
         val tokenizerLoaded = loadOrTrainTokenizer()
-        val corpus = trainingCorpus()
-        if (!tokenizerLoaded || fingerprints.embeddingStateNeedsRetraining(corpus)) {
+        val embeddingCorpus = if (Files.exists(corpusFile)) {
+            trainingCorpus()
+        } else {
+            defaultEmbeddingCorpus.map(TextFold::fold)
+        }
+        if (!tokenizerLoaded || fingerprints.embeddingStateNeedsRetraining(embeddingCorpus)) {
             tokenizer.resetEmbeddings()
             tokenizer.trainSkipGramEmbeddings(
-                corpus,
+                embeddingCorpus,
                 epochs = TokenizerTrainingDefaults.SKIPGRAM_EPOCHS,
                 windowSize = TokenizerTrainingDefaults.SKIPGRAM_WINDOW_SIZE
             )
             tokenizer.save(tokenizerFile)
             saveEmbeddingFingerprint(
-                corpus,
+                embeddingCorpus,
                 TokenizerTrainingDefaults.SKIPGRAM_EPOCHS,
                 TokenizerTrainingDefaults.SKIPGRAM_WINDOW_SIZE
             )
@@ -45,14 +51,20 @@ internal class TokenizerProfile(
         fingerprints.saveEmbeddingFingerprint(corpus, epochs, windowSize)
 
     private fun loadOrTrainTokenizer(): Boolean {
-        val corpus = if (Files.exists(corpusFile)) {
+        val usingCustomCorpus = Files.exists(corpusFile)
+        val corpus = if (usingCustomCorpus) {
             loadTrainingCorpus(corpusFile)
         } else {
             defaultCorpus.map(TextFold::fold)
         }
         activeCorpus = corpus
+        val tokenizerCorpus = if (usingCustomCorpus) {
+            corpus
+        } else {
+            defaultTokenizerCorpus.map(TextFold::fold)
+        }
 
-        val fingerprint = fingerprints.tokenizerFingerprint(corpus)
+        val fingerprint = fingerprints.tokenizerFingerprint(tokenizerCorpus)
         val tokenizerIsCurrent = Files.exists(tokenizerFile) &&
             Files.exists(config.tokenizerFingerprintFile()) &&
             Files.readString(config.tokenizerFingerprintFile()).trim() == fingerprint
@@ -73,9 +85,9 @@ internal class TokenizerProfile(
             }
         }
 
-        tokenizer.train(corpus, TokenizerTrainingDefaults.MAX_MERGE_RULES)
+        tokenizer.train(tokenizerCorpus, TokenizerTrainingDefaults.MAX_MERGE_RULES)
         tokenizer.save(tokenizerFile)
-        FileIo.writeAtomically(config.tokenizerFingerprintFile(), fingerprints.tokenizerFingerprint(corpus))
+        FileIo.writeAtomically(config.tokenizerFingerprintFile(), fingerprints.tokenizerFingerprint(tokenizerCorpus))
         return false
     }
 

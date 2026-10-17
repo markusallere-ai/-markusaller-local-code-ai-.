@@ -37,8 +37,7 @@ für ein großes Sprachmodell.
 Im Projektverzeichnis:
 
 ```powershell
-.\gradlew.bat shadowJar
-java -jar build\libs\Markusaller.jar
+.\start.bat
 ```
 
 Unter Linux oder macOS:
@@ -48,10 +47,19 @@ Unter Linux oder macOS:
 java -jar build/libs/Markusaller.jar
 ```
 
-Das Shadow-JAR bündelt die Laufzeitabhängigkeiten. Alternativ kann der
-Windows-Launcher `Markusaller.bat` verwendet werden: Er sucht zuerst nach
-`Markusaller.jar` neben der Batch-Datei und danach nach
-`build\libs\Markusaller.jar`. Fehlt beides, weist er auf den Build-Schritt hin.
+`start.bat` baut bei jedem Aufruf das aktuelle Projekt mit dem Gradle-Wrapper,
+aktualisiert `Markusaller.jar` direkt im Projektordner und startet genau diese
+Datei. Damit wird nicht versehentlich eine alte JAR-Kopie gestartet.
+`Markusaller.bat` ruft denselben Starter auf. Ein bereits laufendes Fenster
+muss vor dem Neustart geschlossen werden. Startausgaben und Fehler werden in
+`build\start.log` protokolliert; kann das Swing-Fenster nicht erstellt werden,
+zeigt die Anwendung eine Fehlermeldung.
+
+Für einen aktuellen Überblick über Quellcodezeilen `Codezeilen.bat` im
+Projektordner doppelklicken. Es erstellt `CODE_LINES.txt` mit Gesamtzahl,
+Dateityp-Aufschlüsselung und Zeilenzahl je Datei und öffnet den Bericht.
+Gezählt werden Quellcode- und Konfigurationsdateien einschließlich Leerzeilen;
+Build-, Git-, IDE- und Abhängigkeitsordner bleiben außen vor.
 
 Die gestartete Anwendung öffnet ein Swing-Fenster. Es gibt derzeit keinen
 interaktiven Kommandozeilen- oder Headless-Chatmodus. Die öffentliche
@@ -61,8 +69,12 @@ Kotlin-API kann von anderem Kotlin-Code aus verwendet werden.
 
 - Kotlin-Klassen, Datenklassen, Funktionen und einfache Tests anhand von
   Prompt-Regeln und Vorlagen erzeugen.
-- Kurze Begrüßungen als Smalltalk behandeln und unbekannte Eingaben nicht
-  fälschlich als sichere Code-Aufträge ausgeben.
+- Häufige Begrüßungen, Dank, Abschiede und Fragen nach Fähigkeiten als
+  Smalltalk beantworten.
+- Im aktuellen Lauf den letzten fachlichen Gesprächsbezug für begrenzte
+  Rückfragen behalten: Eine Temperaturfrage kann etwa mit „und 30?“ fortgesetzt
+  werden; die letzte Antwort lässt sich wiederholen und das letzte Thema abrufen.
+- Unbekannte Eingaben nicht fälschlich als sichere Code-Aufträge ausgeben.
 - Bei unbekannten Begriffen nach einer Erklärung fragen. Gespeichert wird die
   Erklärung erst nach einer ausdrücklichen Bestätigung; gespeicherte Einträge
   können über **Wissen** angezeigt und gelöscht werden.
@@ -70,6 +82,33 @@ Kotlin-API kann von anderem Kotlin-Code aus verwendet werden.
   sowie einen kleinen TF-IDF-Intent-Klassifikator nutzen.
 - Eine lokale Evaluation mit Intent-, Out-of-Domain-, Embedding- und
   Feedforward-Trainingsmessungen ausführen.
+- Optional einen kleinen Decoder-Transformer ausschließlich lokal auf
+  eingebauten Dialogbeispielen trainieren und im markierten Experimentalmodus
+  ausprobieren.
+- Optional eine Google-Suche im Standardbrowser öffnen. Dieser Modus ist
+  standardmäßig ausgeschaltet; bei Aktivierung wird der eingegebene Suchtext an
+  Google übertragen. Markusaller liest oder bedient Suchergebnisse nicht
+  automatisch. Eine kleine Comet-Erweiterung kann die Suchanfrage im selben
+  Tab aktualisieren.
+- Kopierte Informationen in einem separaten Sammelfenster erfassen und
+  fortlaufend in `~/.markusaller/research_notes.txt` speichern, ohne sie als
+  Chatnachricht zu senden.
+- Mit „Lass eine Runde Schach spielen“ oder „Let's play chess“ ein Schachfenster
+  öffnen. Der Nutzer spielt Weiß; legale Züge und Spielende werden von Chesslib
+  geprüft. Markusaller spielt Schwarz mit einer kleinen lokalen Materialsuche
+  und einer dateibasierten Eröffnungsbank unter `src/main/resources/ai/`.
+  Partien werden im Nutzerprofil unter `chess_games.jsonl` gespeichert. Nach
+  Spielende kann eine Stockfish-Analyse Genauigkeit, Bewertungsverluste und
+  Zugkategorien anzeigen. Stockfish muss separat installiert und beim ersten
+  Analysieren ausgewählt werden.
+
+Die Schach-Gegenseite ist kein trainiertes neuronales Netz und keine starke
+Schachengine. Chesslib stellt Zugregeln und legale Züge bereit; die lokale
+Gegenseite nutzt Eröffnungszüge und eine begrenzte Materialsuche. Die
+Partieanalyse nutzt Stockfish über das UCI-Protokoll; Stockfish ist nicht im
+Projekt-JAR enthalten. Genauigkeit und Zugkategorien sind Näherungswerte,
+keine offiziellen Chess.com-Wertungen. Eine Elo-Zahl lässt sich aus einer
+einzelnen Partie nicht seriös bestimmen.
 
 Die Klassifikation erkennt sechs Code-Intents. Smalltalk wird separat durch
 Regeln behandelt und ist kein siebter Intent im überwachten Trainingssplit.
@@ -81,6 +120,125 @@ Die Verarbeitung läuft im Hintergrund. Erfordert eine unbekannte Eingabe
 Klärung, kannst du die Bedeutung erklären und danach mit `ja` speichern, mit
 `nein` verwerfen oder mit `abbrechen` den Dialog beenden. Eine neue erkannte
 Code-Anfrage unterbricht die offene Rückfrage.
+
+Der Assistent kann außerdem einfache Gesprächsschritte beantworten, etwa
+„Wie geht es dir?“, „Was kannst du?“ und „Danke“. Innerhalb der laufenden
+Sitzung versteht er begrenzte Rückbezüge wie „Wiederhole das“ und „Worüber
+haben wir gesprochen?“. Bei Temperaturfragen kann ein neuer Zahlenwert die
+zuvor genannte Zieleinheit übernehmen, zum Beispiel „Was sind 20 Grad in
+Fahrenheit?“ → „und 30?“.
+
+Der erweiterte Beispielsatzbestand enthält nun zusätzlich deutsche
+Alltags- und Dialogformulierungen. Diese Beispiele stehen für die begrenzten,
+korpusgestützten Textfortsetzungen zur Verfügung; sie trainieren keine freien
+Chat-Antworten. Die etablierten Standard-BPE-Merges und Embeddings bleiben
+bewusst stabil, damit der größere Dialogkorpus den vorhandenen
+Wissensabruf nicht verschlechtert. Dialogantworten und Rückbezüge sind
+gezielte Regeln. Markusaller bleibt ein lokaler Assistent ohne externe
+Sprachmodell-API und ohne allgemeines Weltwissen. Die optionale Google-Suche ist
+ausdrücklich aktivierbare Ausnahme vom lokalen Betrieb. **Zurücksetzen**
+löscht den flüchtigen Gesprächskontext.
+
+### Experimenteller Transformer-Chat
+
+Aktiviere **Experimenteller Transformer-Chat** und wähle **KI-Modell
+trainieren**. Das Training läuft lokal im Hintergrund; danach kann der
+Experimentalmodus für Nachrichten verwendet werden. Er nutzt einen kleinen
+Decoder mit einer kausalen Single-Head-Attention, trainierbaren
+Q/K/V-Projektionen, Positions-Embeddings und einem Feedforward-Teil. Er lernt
+Next-Token-Vorhersagen aus den fest eingebauten Dialogbeispielen,
+ohne vortrainierte Gewichte oder externe Dienste. Das Modell wird unter
+`transformer_chat_model.json` im lokalen Profil gespeichert. Der Verlauf der
+aktuellen Sitzung wird begrenzt als Kontext übergeben; der normale
+regelbasierte Modus bleibt unverändert.
+
+Das ist ein technischer Prototyp, kein leistungsfähiger Chatbot: Das Modell
+ist klein, hat nur einen Attention-Kopf, kein Layer-Normalization oder
+Dropout und sehr wenig Trainingsmaterial. Mit dem sehr kleinen Datensatz lernt
+das Modell vor allem, Trainingsbeispiele zu reproduzieren; es gibt keinen
+Validierungssplit, und der protokollierte Verlust ist nur der Trainingsverlust.
+Das ist kein belastbarer Nachweis von Sprachverständnis. Es kann grammatikalisch
+oder inhaltlich falsche und wiederholende Texte erzeugen; jede Ausgabe wird
+deshalb als experimentell markiert. Mehr Epochen beheben nicht den Mangel an
+vielfältigen Trainingsdaten. Der Modus ist vor dem ersten Training nicht
+verfügbar.
+
+Der Transformer nutzt Wort-Token. Wörter, die beim Training nicht vorkamen,
+fallen auf ein einzelnes `<unbekannt>`-Token zurück; sie werden nicht in
+Subwörter zerlegt. Das begrenzt unbekannte Eingaben zusätzlich. Das Training
+berechnet pro Next-Token-Ziel einen separaten Vorwärts- und Rückwärtsschritt
+mit SGD. Das ist für diesen kleinen Lernprototyp bewusst einfach, aber kein
+effizienter, vektorisierter Batch-Trainingspfad. Der Gradiententest vergleicht
+repräsentative Parameterwerte aus zwölf Parametergruppen mit zentralen
+numerischen Differenzen; er ersetzt keinen vollständigen formalen Beweis.
+
+Hintergrund: [Attention Is All You Need](https://arxiv.org/abs/1706.03762)
+beschreibt skalierte Attention und Maskierung für autoregressive Vorhersagen;
+der [Annotated Transformer](https://nlp.seas.harvard.edu/annotated-transformer/)
+führt die Bausteine als nachvollziehbare Implementierung aus. Die
+[Hugging Face-Dokumentation zu BPE](https://huggingface.co/learn/llm-course/en/chapter6/5)
+erläutert, wie Subword-Tokenisierung Wort-OOV reduzieren kann und byte-level
+BPE unbekannte Zeichen abdeckt. Diese Änderungen wurden hier nicht
+blind übernommen: Ein byte-level Modell würde ein anderes Vokabular,
+Tokenformat und Trainingsbudget erfordern und wird deshalb nicht als
+unkompatible Umstellung in bestehende Modell-Dateien eingeschleust.
+
+### Einstellungen und optionale Google-Suche
+
+Öffne oben rechts **Einstellungen**, um den experimentellen Transformer-Chat
+oder die Google-Suche ein- und auszuschalten. Der Transformer kann im selben
+Fenster über **KI-Modell trainieren** trainiert werden. Die beiden Modi schließen
+sich gegenseitig aus.
+
+Aktiviere **Google-Suche im Browser**, um jede folgende Eingabe als Suchanfrage
+an Google zu senden und die Ergebnisse im Standardbrowser zu öffnen, solange
+der Schalter aktiv bleibt. Er ist standardmäßig aus; die Oberfläche weist
+darauf hin, dass die Anfrage den Rechner verlässt. Für öffentliche
+Suchergebnisse ist in der Regel kein Google-Konto nötig, aber Google kann
+regionale Hinweise oder Bestätigungsseiten anzeigen. Markusaller umgeht solche
+Prüfungen nicht.
+
+Diese Integration ist bewusst keine autonome Browsersteuerung: Markusaller
+liest keine Ergebnis- oder Webseiteninhalte, klickt keine Links an und sendet
+keine Formulare. Du prüfst die Ergebnisse selbst im Browser. Der Google-Modus
+und der experimentelle Transformer-Modus schließen sich gegenseitig aus.
+
+Damit Google-Suchen in Comet denselben Tab wiederverwenden, muss die optionale
+Erweiterung aus `comet-extension` einmalig in Comet geladen werden:
+
+1. In Comet `chrome://extensions` öffnen und den Entwicklermodus aktivieren.
+2. **Entpackte Erweiterung laden** wählen und den Ordner `comet-extension` aus
+   diesem Projekt auswählen.
+3. Den Google-Suchmodus in Markusaller aktivieren. Die erste Suche wird zum
+   wiederverwendeten Tab; weitere Suchen aktualisieren diesen Tab. Ein
+   kurzlebiger lokaler Übergabetab kann während der Aktualisierung erscheinen
+   und wird danach geschlossen.
+
+Die Erweiterung erhält nur den Google-Suchlink, aktualisiert den zuletzt
+verwendeten Markusaller-Suchtab und schließt den lokalen Übergabetab. Sie liest
+keine anderen Tabs. Ohne geladene Erweiterung erscheint der lokale Übergabetab
+mit einem direkten Google-Link als Fallback. Die lokale Übergabe bindet nur an
+`127.0.0.1` und transportiert ausschließlich den Google-Suchlink.
+
+Über **Infos sammeln** öffnet sich daneben ein nicht-modales Fenster. Du kannst
+Text aus der Browser-Suche hineinkopieren und mit **Lokal speichern** als
+separate, zeitgestempelte Notiz anhängen. Das Fenster bleibt zum fortlaufenden
+Sammeln geöffnet. Im Tab **Gespeicherte Infos ansehen** kannst du die Datei
+einsehen und aktualisieren. Die Notizen gehen nicht automatisch in den Chat,
+werden nicht als abrufbares Wissen eingelernt und nur lokal unter
+`~/.markusaller/research_notes.txt` gespeichert.
+
+Mit **„Geh die Infos durch“** öffnet Markusaller diese gespeicherten Notizen
+und erstellt einen kurzen, extraktiven Vorschlag aus den ersten passenden
+Sätzen jeder Notiz. Prüfe und bearbeite ihn; erst **Als Wissen speichern**
+legt ihn als abrufbaren Eintrag in `knowledge.jsonl` ab. Das trainiert keine
+Modellgewichte. Es bewahrt die Originalnotizen unverändert und macht die
+freigegebene Kurzfassung für den bestehenden Wissensabruf verfügbar.
+
+Einfache numerische Temperaturfragen mit angegebener Zielskala werden direkt
+berechnet, zum Beispiel **„Was sind 20 Grad in Fahrenheit?“** → **20 °C
+entsprechen 68 °F.** Eine ausdrücklich angeforderte Kotlin-Funktion wird
+weiterhin als Kotlin-Code erzeugt.
 
 Der Wissensspeicher ist auch über die Kotlin-API nutzbar:
 
@@ -133,12 +291,14 @@ Die vollständige Einordnung der Evaluationswerte und ihrer Grenzen steht in
 
 ```text
 Swing-GUI
-  ├─ Eingabe, Verlauf, Wissen, Evaluation und Brain-JSON
+  ├─ Eingabe, Verlauf, Wissen, Evaluation, Brain-JSON und optionale Modi
+  ├─ ChessGameDialog ──────────────> Chesslib-Regeln und Stockfish-Analyse
   └─ CodeAssistant (öffentliche Fassade)
        ├─ ConversationCoordinator ──> Gesprächszustand und Bestätigung
        ├─ IntentClassifier ─────────> Regeln und TF-IDF-Fallback
        ├─ KnowledgeStore ───────────> lokales JSONL-Wissen
        ├─ CodeGenerator ────────────> regelbasierte Kotlin-Vorlagen
+       ├─ TinyTransformerChat ──────> optionaler experimenteller Decoder
        ├─ TokenizerProfile ─────────> Korpus, Fingerprints und Persistenz
        │    └─ BpeTokenizer ────────> Vokabular und Skip-Gram-Embeddings
        └─ EvaluationComponent / LanguageModelTrainer
@@ -146,15 +306,22 @@ Swing-GUI
 
 Gemeinsame Datenmodelle liegen in `AssistantModels.kt`; der eingebettete
 Tokenizer-Trainingskorpus ist in `AssistantTrainingCorpus.kt` getrennt.
+Technische Recherche, bekannte Tokenizer-/Generatorgrenzen und die Quellen
+stehen in [docs/CODEASSISTANT_GENERATOR_TOKENIZER_RESEARCH.txt](docs/CODEASSISTANT_GENERATOR_TOKENIZER_RESEARCH.txt).
 
 Der normale Antwortweg führt nicht durch den Feedforward-Generator. Der
 Tokenizer und seine Embeddings unterstützen Tokenisierung, Wissensähnlichkeit
 und Diagnose. Der Trainingskorpus enthält ergänzende deutsche und englische
 Programmierbegriffe, darunter Kotlin, Java, C#, C++, Python und JavaScript.
-Das erweitert nur die lokalen Token-/Embedding-Beispiele; der Codegenerator
-erzeugt weiterhin ausschließlich Kotlin. Das kleine Feedforward-Modell kann
+Der ergänzte Beispielsatzbestand umfasst nun auch Dialog-, Alltags- und
+Kontextformulierungen. Der Codegenerator erzeugt weiterhin ausschließlich
+Kotlin. Das kleine Feedforward-Modell kann
 separat trainiert und zur deterministischen Fortsetzung ausprobiert werden;
-es ist experimentell.
+es ist experimentell. Davon getrennt ist der optional trainierbare
+`TinyTransformerChat`: Ein einzelner Decoder-Block mit kausaler Attention,
+Feedforward-Schicht und lokaler Next-Token-Optimierung. Er verarbeitet
+Wort-Token statt BPE-Subwörtern und liefert greedy Fortsetzungen. Er verwendet
+weder extern vortrainierte Parameter noch Netzwerkdienste.
 
 ## Daten und Datenschutz
 
@@ -164,8 +331,10 @@ Laufzeitdaten liegen standardmäßig im Nutzerprofil:
 - Linux/macOS: `~/.markusaller`
 
 Dort liegen unter anderem Tokenizer- und Fingerprint-Dateien,
-`knowledge.jsonl`, `training_examples.jsonl` und der Gesprächsverlauf
-`history.jsonl`. Neue Verlaufseinträge werden angehängt; der Verlauf ist auf
+`knowledge.jsonl`, `training_examples.jsonl`, `chess_games.jsonl`,
+`research_notes.txt` und der Gesprächsverlauf `history.jsonl` sowie nach dem
+Training `transformer_chat_model.json`. Neue
+Verlaufseinträge werden angehängt; der Verlauf ist auf
 10.000 Einträge begrenzt und wird bei Überschreitung auf 9.000 Einträge
 kompaktiert. Mehrzeilige Nachrichten bleiben in JSONL als vollständige
 Textfelder erhalten. Ein vorhandenes `history.txt` wird als Legacy-Format
@@ -182,8 +351,11 @@ bestätigter Migration übernommen. Ohne importiertes Profilkorpus nutzt die
 Anwendung ihren eingebauten deutschen und englischen Standardkorpus.
 
 Die Anwendung sendet Prompts, Verlauf und gespeichertes Wissen nicht an eine
-externe LLM-API. Der Build lädt Gradle-Abhängigkeiten aus den konfigurierten
-Repositories; das ist von der Laufzeit der lokalen Anwendung zu unterscheiden.
+externe LLM-API. Nur wenn **Google-Suche im Browser** eingeschaltet ist, wird
+der aktuelle Suchtext an Google übertragen; Gesprächsverlauf und lokales
+Wissen werden dabei nicht mitgesendet. Der Build lädt Gradle-Abhängigkeiten aus
+den konfigurierten Repositories; das ist von der Laufzeit der lokalen
+Anwendung zu unterscheiden.
 
 ## Entwicklung und Beiträge
 
@@ -199,8 +371,10 @@ Testklassen, abgedeckte Bereiche und bekannte Testlücken sind in
 JAR erstellen:
 
 ```powershell
-.\gradlew.bat shadowJar --no-daemon
+.\gradlew.bat runnableJar --no-daemon
 ```
+
+Der Starter-Build erzeugt `Markusaller.jar` direkt im Projektordner.
 
 Detekt-Regeln stehen in `config/detekt.yml`; die vorhandene Baseline ist im
 Detekt-Task eingebunden. Neue Befunde sollen geprüft werden, statt sie
@@ -246,6 +420,8 @@ Datensatzaufteilung und dokumentierte historische Zahlen stehen in
   deterministischer Greedy-Ausgabe; es ist kein allgemeines Sprachmodell.
 - Der Verlauf wird lokal gespeichert, nicht synchronisiert und nicht
   verschlüsselt.
+- Die Schachanalyse setzt eine separate Stockfish-Installation voraus;
+  Bewertungsverlust, Genauigkeit und Zugkategorien sind nur Näherungen.
 
 ## Fehlerbehebung
 
@@ -258,9 +434,17 @@ globalen Gradle verwenden.
 
 ### Das JAR wurde nicht gefunden
 
-Führe im Projektverzeichnis `.\gradlew.bat shadowJar` aus. Das erwartete
-Ergebnis ist `build\libs\Markusaller.jar`. `Markusaller.bat` sucht zusätzlich
-nach einer gleichnamigen JAR-Datei in seinem eigenen Verzeichnis.
+Führe im Projektverzeichnis `.\start.bat` aus. Das Skript protokolliert
+Buildfehler in `build\start.log` und startet nur, wenn der aktuelle Build
+erfolgreich war. Das erzeugte `Markusaller.jar` liegt neben der Batchdatei.
+
+### Stockfish-Analyse
+
+Für Partieanalysen Stockfish separat von der offiziellen
+[Stockfish-Downloadseite](https://stockfishchess.org/download/) beziehen.
+Beim ersten Analysieren die Engine-Datei auswählen. Die Anwendung speichert
+den Pfad lokal in den Java-Benutzereinstellungen; sie lädt oder verteilt
+Stockfish nicht selbst.
 
 ### Tokenizer- oder Profildateien fehlen
 

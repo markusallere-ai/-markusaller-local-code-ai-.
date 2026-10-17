@@ -39,7 +39,7 @@ kein Ersatz für die anderen beiden.
 
 ## Umfang in diesem Stand
 
-Die Testsuite enthält derzeit **194 ausgeführte Testfälle** in 16
+Die Testsuite enthält derzeit **246 ausgeführte Testfälle** in 22
 Testklassen. Manche Testmethoden prüfen zusätzlich mehrere Eingaben als
 Falltabelle oder mehrere Randfälle. Die Zahl stammt aus dem JUnit-Bericht des
 vollständigen Laufs und ist weder die Zahl aller Assertions noch eine
@@ -48,13 +48,13 @@ Code-Coverage-Angabe.
 | Testklasse | Schwerpunkt |
 |---|---|
 | `ConfigurationAndNormalizationTest` | Schwellenwerte, Speicherpfade, Textfaltung, Bezeichner und JSON-Zahlen |
-| `CodeGeneratorTest` | Feldextraktion, Namen, Parameter, mathematische Vorlagen und erzeugte Tests |
-| `IntentClassifierTest` | Regeln, Prioritäten, Smalltalk-Grenzen und statistischer Fallback |
+| `CodeGeneratorTest` | Feldextraktion, Namen, Parameter, mathematische Vorlagen und typkonsistente erzeugte Tests |
+| `IntentClassifierTest` | Regeln, Prioritäten, Smalltalk- und Rückfrageerkennung sowie statistischer Fallback |
 | `SupervisedIntentClassifierTest` | TF-IDF-Konfidenz- und Margin-Schwellen einschließlich Grenzwerten |
 | `LanguageModelBoundaryTest` | Leere Korpora, ungültige Trainingsparameter, Gradientenkontrolle und Generierungsgrenzen |
 | `LanguageModelPersistenceTest` | JSON-Fehler, Tensorformvalidierung, Gewichtsbereinigung und gespeicherte Modellfelder |
 | `PersistenceBoundaryTest` | Validierung, normalisierte Prompt-Ersetzung, beschädigte JSONL-Zeilen, Historiengrenzen und Migration |
-| `ReliabilityRegressionTest` | Gesprächszustand, Lernbestätigung, Korrekturen, Verlauf und konkurrierende Schreibvorgänge |
+| `ReliabilityRegressionTest` | Gesprächskontext, Smalltalk, Lernbestätigung, Korrekturen, Verlauf und konkurrierende Schreibvorgänge |
 | `TokenizerStateValidationTest` | Snapshot-Version, Merge-Limits, Vokabular-IDs, normalisierte Duplikate und Vektorformen |
 | `CodeAssistantTokenizerTest` | Korpusvielfalt, Tokenisierung, Sortierreihenfolge, Eingabegrenzen, Speicherort und Textfortsetzung |
 | `EmbeddingRegressionTest` | Embedding-Persistenz, Skip-Gram-Training und belastbare Tokenizer-Wiederherstellung |
@@ -62,7 +62,28 @@ Code-Coverage-Angabe.
 | `CodeAssistantBugFixTest` | Wissensabruf, Assistant-API, Feedforward-Modell-Persistenz und Fehlerregressionen |
 | `EvaluationTest` | Metriken, Datenaufteilung, Reproduzierbarkeit und Diagnosetext |
 | `EvaluationBoundaryTest` | Mindestdaten, nicht endliche Werte und Loss-Berichtsränder |
-| `GeneratedSourceCompilationTest` | Kompilierung aller 40 Code-Trainingsprompts und vier spezialisierter Funktionsausgaben |
+| `GeneratedSourceCompilationTest` | Kompilierung aller 40 Code-Trainingsprompts, spezialisierter Vorlagen und Temperatur-/Dezimalfälle |
+| `TinyTransformerChatTest` | lokale Transformer-Konvergenz, numerische Gradientenchecks für zwölf Parametergruppen, deterministische Inferenz, JSON-Roundtrip, UI-Opt-in und Chat-Integration |
+| `GoogleSearchTest` | Google-URL-Kodierung, Eingabegrenzen, Browser-Aufruf, Opt-in/Datenschutzhinweis und Einstellungsfenster |
+| `ResearchNotesStoreTest` | Lokales fortlaufendes Sammeln, Zeitstempel, Textgrenzen und leere Eingaben |
+| `ResearchNotesSummarizerTest` | Extraktive Kurzzusammenfassungen, Satz-Deduplizierung und leere Notizen |
+| `CometSearchBridgeTest` | Lokaler Übergabelink, Google-Zielvalidierung und Fallback-Seite |
+| `ChessGameTest` | Schach-Trigger, Brettfarben, legale Züge, Persistenz, Stockfish-UCI und Eröffnungsdatei |
+
+Die Schachbibliothek stellt die Zugregeln bereit. Die Tests prüfen
+Anfangsstellung, ungültige Nutzerzüge, eine legale Computerantwort,
+Eröffnungsbuch-Validierung, gespeicherte Partiestände, Farbpalette,
+UCI-Bewertungsparser und Subprozess-Kommunikation mit einem kleinen
+Testdouble. Sie benötigen keine installierte Stockfish-Binary und ersetzen
+keine vollständige Schachregel-Suite oder Engine-Stärke-Evaluation.
+
+Die Transformer-Tests prüfen sinkende Trainings-Kreuzentropie auf einem
+winzigen Dialogdatensatz, deterministische Inferenz nach einem JSON-Roundtrip,
+Hyperparametergrenzen und dass die Chat-API explizites lokales Training
+verlangt und Ausgaben kennzeichnet. Ein numerischer Gradient-Check vergleicht
+repräsentative Werte aus zwölf Parametergruppen mit zentralen Differenzen; er
+prüft nicht jedes Gewicht. Die Tests belegen keine Sprachqualität auf
+unbekannten Fragen; der eingebaute Beispieldatensatz ist dafür viel zu klein.
 
 ## Was die Tests konkret absichern
 
@@ -82,6 +103,9 @@ Code-Coverage-Angabe.
 - Summen- und Durchschnittsbeispiele ihre tatsächlich vorhandenen Parameter
   verwenden, den Durchschnitt gegen leere Eingaben absichern und Tests
   konkrete erwartete Zahlen prüfen;
+- Maximum-, Minimum-, Differenz- und Temperaturvorlagen bei passenden Prompts
+  konkrete Implementierungen erzeugen; erzeugte Dezimal-MAX- und
+  Dezimal-Differenztests verwenden Double-Parameter und Double-Beispielwerte;
 - inkompatible Einzelfelder oder drei skalare Summenparameter nicht in einen
   Rumpf geraten, der nicht vorhandene `numbers`-/`values`-Variablen benutzt;
 - eigenständige Pi- und Fibonacci-Beispiele behalten ihre Genauigkeitsgrenzen,
@@ -97,8 +121,10 @@ Prompt-Ausgabe syntaktisch oder semantisch kompilierbar ist.
 `GeneratedSourceCompilationTest` kompiliert in einem Kotlin-Compilerlauf die
 Ausgaben für alle 40 Klasse-, Datenklasse-, Funktions- und Testprompts aus
 `TRAINING_INTENT_CASES` sowie Pi-, Sortier-, Fibonacci- und
-Kreisumfang-Beispiele. Der Test verwendet einen gemeinsamen Assistant und
-gibt die Zahl der Funktionsausgaben mit `TODO`-Stub im JUnit-Testprotokoll aus.
+Kreisumfang-Beispiele. Zusätzliche Tests kompilieren beide
+Temperaturumrechnungsrichtungen sowie Dezimal-MAX und Dezimal-Differenz samt
+Assertions. Der Test verwendet einen gemeinsamen Assistant und gibt die Zahl
+der Funktionsausgaben mit `TODO`-Stub im JUnit-Testprotokoll aus.
 Kompilierbarkeit belegt weder die inhaltliche Richtigkeit noch die
 Laufzeitsemantik der Snippets und deckt keine Prompts außerhalb dieses festen
 Satzes ab.
@@ -106,11 +132,12 @@ Satzes ab.
 ### Klassifikation
 
 `IntentClassifierTest` prüft die sechs unterstützten Code-Intents, deutsche
-Begrüßungsvarianten, die Begrenzung der Smalltalk-Regel auf kurze Eingaben,
+Begrüßungsvarianten, häufige Smalltalk- und Rückfrageformulierungen,
 Begrüßungen vor konkreten Aufträgen sowie die Priorität von Tokenisierungs-
 und anderen expliziten Regeln. Zusätzlich prüft es, dass der übergebene
 überwachte Klassifikator nur als Fallback aufgerufen wird und dass ohne
-Treffer `Unknown` mit null Konfidenz gemeldet wird.
+Treffer `Unknown` mit null Konfidenz gemeldet wird. Temperaturbezeichnungen
+ohne Umrechnungsaktion dürfen nicht als Funktionsauftrag gelten.
 
 Die Falltabellen sind gezielte Regressionseingaben. Sie sind kein zufällig
 gezogener oder unabhängiger deutscher Sprachdatensatz.
@@ -142,7 +169,8 @@ dass wiederholte Prompts im Batch dem letzten Wert entsprechen.
 
 `CodeAssistantTokenizerTest` prüft die Ausrichtung von Token, ID und Vektor,
 Normalisierung von Großschreibung und deutschen Umlauten,
-Embedding-Dimensionen, defensive Kopien, ungültige IDs/Werte,
+Unicode-Supplementary-Zeichen, Embedding-Dimensionen, defensive Kopien,
+ungültige IDs/Werte,
 Skip-Gram-Trainingsparameter sowie Textfortsetzung, inklusive Grenzen für
 maximale Tokenzahl und Trigrammpriorität. Der Korpustest verlangt mindestens
 50 nichtleere, nach `TextFold` eindeutige Sätze und Beispiele für Kotlin/Java,

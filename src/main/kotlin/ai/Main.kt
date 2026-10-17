@@ -14,11 +14,27 @@ import javax.swing.*
 import javax.swing.border.EmptyBorder
 
 /** Startet Swing auf dem Event-Dispatch-Thread, wie es die UI-Thread-Regeln verlangen. */
+@Suppress("TooGenericExceptionCaught")
 fun main() {
-    SwingUtilities.invokeLater { MarkusallerWindow().show() }
+    SwingUtilities.invokeLater {
+        try {
+            MarkusallerWindow().show()
+        } catch (exception: Exception) {
+            System.err.println("MARKUSALLER_STARTUP_FAILURE")
+            exception.printStackTrace()
+            JOptionPane.showMessageDialog(
+                null,
+                "Markusaller konnte nicht gestartet werden:\n" +
+                    (exception.message ?: exception.javaClass.simpleName),
+                "Startfehler",
+                JOptionPane.ERROR_MESSAGE
+            )
+        }
+    }
 }
 
 /** Baut und steuert die lokale Swing-Oberfläche für Chat, Verlauf und Wissensverwaltung. */
+@Suppress("LargeClass")
 class MarkusallerWindow {
     private val assistant by lazy {
         CodeAssistant(AssistantConfig(writeBrainStateOnInit = false))
@@ -29,12 +45,19 @@ class MarkusallerWindow {
     private lateinit var historyModel: DefaultListModel<String>
     private lateinit var historyList: JList<String>
     private lateinit var sendButton: JButton
+    private lateinit var settingsButton: JButton
+    private lateinit var researchNotesButton: JButton
     private lateinit var loadingTimer: Timer
+    private lateinit var experimentalChatControls: ExperimentalChatControls
+    private lateinit var webSearchControls: WebSearchControls
     private var loadingStep = 0
     private var isProcessing = false
 
     private val historyStore = ConversationHistoryStore()
+    private val researchNotesStore by lazy { ResearchNotesStore() }
+    private var researchNotesDialog: ResearchNotesDialog? = null
     private val historyEntries = mutableListOf<HistoryEntry>()
+    private val currentConversationEntries = mutableListOf<HistoryEntry>()
     private val controlsDuringConversation = mutableListOf<AbstractButton>()
 
     /** Fragt eine einmalige Legacy-Migration ab und zeigt anschließend das Hauptfenster. */
@@ -132,12 +155,16 @@ class MarkusallerWindow {
         subtitleLabel.font = Font("Segoe UI", Font.PLAIN, 14)
         subtitleLabel.foreground = Color(148, 163, 184)
 
-        val headerPanel = JPanel()
-        headerPanel.layout = BoxLayout(headerPanel, BoxLayout.Y_AXIS)
+        val headerPanel = JPanel(BorderLayout())
         headerPanel.isOpaque = false
-        headerPanel.add(titleLabel)
-        headerPanel.add(Box.createVerticalStrut(6))
-        headerPanel.add(subtitleLabel)
+        val titlePanel = JPanel()
+        titlePanel.layout = BoxLayout(titlePanel, BoxLayout.Y_AXIS)
+        titlePanel.isOpaque = false
+        titlePanel.add(titleLabel)
+        titlePanel.add(Box.createVerticalStrut(6))
+        titlePanel.add(subtitleLabel)
+        headerPanel.add(titlePanel, BorderLayout.WEST)
+        headerPanel.add(createHeaderActionsPanel(), BorderLayout.EAST)
 
         sendButton = styledButton("Senden", Color(56, 189, 248), Color(15, 23, 42))
         sendButton.addActionListener { generateCode() }
@@ -146,7 +173,8 @@ class MarkusallerWindow {
 
         val resetButton = styledButton("Zurücksetzen", Color(71, 85, 105), Color(226, 232, 240))
         resetButton.addActionListener {
-            assistant.cancelPendingClarification()
+            assistant.resetConversation()
+            currentConversationEntries.clear()
             promptArea.text = ""
             outputArea.text = ""
             statusLabel.text = "Bereit"
@@ -198,6 +226,19 @@ class MarkusallerWindow {
         knowledgeButton.addActionListener { manageKnowledge() }
         addButtonHover(knowledgeButton)
         controlsDuringConversation.add(knowledgeButton)
+
+        experimentalChatControls = ExperimentalChatControls {
+            runBackgroundAction(
+                runningMessage = "Lokales Transformer-Modell wird trainiert...",
+                successMessage = "Experimentelles Chat-Modell bereit",
+                task = { assistant.trainExperimentalChatModel() },
+                onSuccess = { outputArea.text = it }
+            )
+        }
+        addButtonHover(experimentalChatControls.trainButton)
+        controlsDuringConversation.addAll(experimentalChatControls.controls)
+
+        initializeWebSearchControls()
 
         historyModel = DefaultListModel()
         historyList = JList(historyModel).apply {
@@ -326,6 +367,47 @@ class MarkusallerWindow {
         }
     }
 
+    private fun createHeaderActionsPanel(): JPanel {
+        settingsButton = styledButton("Einstellungen", Color(71, 85, 105), Color(226, 232, 240))
+        settingsButton.addActionListener {
+            AssistantSettingsDialog(webSearchControls, experimentalChatControls)
+                .show(SwingUtilities.getWindowAncestor(settingsButton))
+        }
+        addButtonHover(settingsButton)
+        controlsDuringConversation.add(settingsButton)
+        researchNotesButton = styledButton("Infos sammeln", Color(71, 85, 105), Color(226, 232, 240))
+        researchNotesButton.toolTipText = "Kopierte Browser-Informationen separat lokal speichern."
+        researchNotesButton.addActionListener {
+            val notesDialog = researchNotesDialog ?: ResearchNotesDialog(researchNotesStore) { summary ->
+                assistant.storeKnowledge(summary, summary, listOf("research-notes"))
+            }
+                .also { researchNotesDialog = it }
+            notesDialog.show(SwingUtilities.getWindowAncestor(researchNotesButton))
+        }
+        addButtonHover(researchNotesButton)
+        controlsDuringConversation.add(researchNotesButton)
+        return JPanel(FlowLayout(FlowLayout.RIGHT, 8, 0)).apply {
+            isOpaque = false
+            add(researchNotesButton)
+            add(settingsButton)
+        }
+    }
+
+    private fun initializeWebSearchControls() {
+        webSearchControls = WebSearchControls()
+        webSearchControls.modeToggle.addActionListener {
+            if (webSearchControls.modeToggle.isSelected) {
+                experimentalChatControls.modeToggle.isSelected = false
+            }
+        }
+        experimentalChatControls.modeToggle.addActionListener {
+            if (experimentalChatControls.modeToggle.isSelected) {
+                webSearchControls.modeToggle.isSelected = false
+            }
+        }
+        controlsDuringConversation.addAll(webSearchControls.controls)
+    }
+
     /** Erzeugt eine Schaltfläche mit gemeinsamem Schrift-, Farb- und Fokusstil. */
     private fun styledButton(text: String, bg: Color, fg: Color): JButton {
         return JButton(text).apply {
@@ -371,13 +453,58 @@ class MarkusallerWindow {
             statusLabel.text = "Bitte erst eine Anfrage eingeben."
             return
         }
+        if (ChessRequest.matches(prompt)) {
+            openChessGame(prompt)
+        } else if (ResearchNotesRequest.matches(prompt)) {
+            reviewResearchNotes(prompt)
+        } else {
+            processPrompt(prompt)
+        }
+    }
+
+    private fun reviewResearchNotes(prompt: String) {
+        val response = "Ich habe die gespeicherten Notizen geöffnet. Der Kurzvorschlag ist " +
+            "extraktiv und sollte vor dem Speichern geprüft werden. Das Speichern macht ihn " +
+            "abrufbar, trainiert aber keine Modellgewichte."
+        val newEntries = appendConversation(prompt, response)
+        statusLabel.text = "Gespeicherte Recherche-Notizen geöffnet."
+        persistHistoryAsync(newEntries) {}
+        val notesDialog = researchNotesDialog ?: ResearchNotesDialog(researchNotesStore) { summary ->
+            assistant.storeKnowledge(summary, summary, listOf("research-notes"))
+        }.also { researchNotesDialog = it }
+        notesDialog.show(SwingUtilities.getWindowAncestor(sendButton), showSavedNotes = true)
+    }
+
+    private fun openChessGame(prompt: String) {
+        val response = "Das Schachspiel wurde geöffnet. Du spielst Weiß; Markusaller spielt Schwarz."
+        val newEntries = appendConversation(prompt, response)
+        statusLabel.text = "Schachspiel geöffnet."
+        persistHistoryAsync(newEntries) {}
+        ChessGameDialog.open()
+    }
+
+    private fun processPrompt(prompt: String) {
         isProcessing = true
         setConversationProcessing(true)
         startLoadingAnimation()
+        val webSearchMode = webSearchControls.modeToggle.isSelected
+        val experimentalMode = experimentalChatControls.modeToggle.isSelected
+        val recentTurns = currentConversationEntries.takeLast(8).toList()
         // Die Assistant-Arbeit läuft außerhalb des UI-Threads; done() wird wieder auf dem EDT ausgeführt.
         object : SwingWorker<ConversationTurnResult, Unit>() {
             override fun doInBackground(): ConversationTurnResult {
-                return assistant.handleConversationTurn(prompt)
+                return if (experimentalMode) {
+                    ConversationTurnResult(assistant.experimentalChatResponse(prompt, recentTurns))
+                } else if (webSearchMode) {
+                    GoogleSearch().open(prompt)
+                    ConversationTurnResult(
+                        "Die Suche wurde an Comet übergeben. Mit installierter Markusaller-Erweiterung " +
+                            "wird der gespeicherte Google-Suchtab aktualisiert; ohne Erweiterung " +
+                            "öffnet der lokale Übergabetab einen direkten Google-Link."
+                    )
+                } else {
+                    assistant.handleConversationTurn(prompt)
+                }
             }
 
             override fun done() {
@@ -386,6 +513,8 @@ class MarkusallerWindow {
                     val turn = get()
                     val newEntries = appendConversation(prompt, turn.response)
                     statusLabel.text = when {
+                        webSearchMode -> "Suchanfrage an Comet übergeben; Google erhält sie beim Öffnen."
+                        experimentalMode -> "Experimenteller Chat – Antwort kann falsch sein."
                         turn.learnedKnowledge -> "Erklärung lokal gespeichert"
                         turn.awaitingConfirmation -> "Speichern bestätigen oder verwerfen"
                         turn.awaitingClarification -> "Rückfrage offen"
@@ -418,6 +547,7 @@ class MarkusallerWindow {
             HistoryEntry("Antwort", currentTimestamp(), response)
         )
         historyEntries.addAll(newEntries)
+        currentConversationEntries.addAll(newEntries)
         if (historyEntries.size > ConversationHistoryStore.MAX_ENTRIES) {
             val excessCount = historyEntries.size - ConversationHistoryStore.COMPACTED_ENTRIES
             historyEntries.subList(0, excessCount).clear()

@@ -6,6 +6,12 @@ internal class ConversationState {
         private set
     var pendingKnowledge: Pair<String, String>? = null
         private set
+    var lastTopicPrompt: String? = null
+        private set
+    var lastTopicResponse: String? = null
+        private set
+    var lastResponse: String? = null
+        private set
 
     /** Beginnt eine Wissensrückfrage und verwirft einen eventuell älteren Speichervorschlag. */
     fun askForClarification(prompt: String) {
@@ -33,5 +39,20 @@ internal class ConversationState {
     fun clear() {
         pendingPrompt = null
         pendingKnowledge = null
+    }
+
+    fun rememberTurn(prompt: String, response: String, isSmalltalk: Boolean) {
+        if (!isSmalltalk) {
+            lastTopicPrompt = prompt
+            lastTopicResponse = response
+        }
+        lastResponse = response
+    }
+
+    fun clearConversation() {
+        clear()
+        lastTopicPrompt = null
+        lastTopicResponse = null
+        lastResponse = null
     }
 }

@@ -173,6 +173,35 @@ class ReliabilityRegressionTest {
     }
 
     @Test
+    fun conversationHandlesSmalltalkAndReferencesPreviousTurns() {
+        val assistant = assistant()
+
+        val greeting = assistant.handleConversationTurn("Hallo")
+        assertTrue(greeting.response.contains("Was möchtest du besprechen"))
+        assertTrue(assistant.handleConversationTurn("Wie geht es dir?").response.contains("keine Gefühle"))
+        assertTrue(assistant.handleConversationTurn("Was kannst du?").response.contains("kein frei formulierendes"))
+        assertTrue(assistant.handleConversationTurn("Was sind 20 Grad in Fahrenheit?").response.contains("68 °F"))
+        assertTrue(assistant.handleConversationTurn("und 30").response.contains("86 °F"))
+        assertTrue(assistant.handleConversationTurn("Wiederhole das").response.contains("86 °F"))
+        assertTrue(assistant.handleConversationTurn("Worüber haben wir gesprochen?").response.contains("30 Grad"))
+    }
+
+    @Test
+    fun conversationResetClearsPreviousTurnContext() {
+        val assistant = assistant()
+        assistant.handleConversationTurn("Was sind 20 Grad in Fahrenheit?")
+
+        assistant.resetConversation()
+
+        assertTrue(
+            assistant.handleConversationTurn("Wiederhole das").response.contains("gerade erst begonnen")
+        )
+        assertTrue(
+            assistant.handleConversationTurn("und 30").awaitingClarification
+        )
+    }
+
+    @Test
     fun explanationStartingWithQuestionWordCanAnswerClarification() {
         val assistant = assistant()
         assertTrue(assistant.handleConversationTurn("unknown concept").awaitingClarification)

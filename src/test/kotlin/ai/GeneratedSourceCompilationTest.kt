@@ -6,6 +6,7 @@ import java.io.PrintStream
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import org.jetbrains.kotlin.cli.common.ExitCode
 import org.jetbrains.kotlin.cli.jvm.K2JVMCompiler
 
@@ -44,6 +45,58 @@ class GeneratedSourceCompilationTest {
         assertEquals(40, evaluationCases.size)
         assertEquals(10, functionCases.size)
         compileSources(allSources.mapIndexed { index, (_, source) -> index to source })
+    }
+
+    @Test
+    fun generatedTemperatureFunctionsAndTestsCompileInBothDirections() {
+        val storage = Files.createTempDirectory("temperature-source-assistant")
+        val assistant = CodeAssistant(AssistantConfig(storage))
+        val prompts = listOf(
+            "Rechne 25 Celsius in Fahrenheit um" to
+                "Erstelle einen Test für eine Funktion namens celsiusToFahrenheit, " +
+                    "die Celsius in Fahrenheit umrechnen soll",
+            "Rechne 77 Fahrenheit in Celsius um" to
+                "Erstelle einen Test für eine Funktion namens fahrenheitToCelsius, " +
+                    "die Fahrenheit in Celsius umrechnen soll"
+        )
+        val sources = prompts.flatMapIndexed { index, (functionPrompt, testPrompt) ->
+            listOf(assistant.handlePrompt(functionPrompt), assistant.handlePrompt(testPrompt))
+                .mapIndexed { offset, source -> index * 2 + offset to source }
+        }
+
+        assertTrue(
+            sources[1].second.contains("assertEquals(77.0, celsiusToFahrenheit(25.0), 0.0001)")
+        )
+        assertTrue(
+            sources[3].second.contains("assertEquals(25.0, fahrenheitToCelsius(77.0), 0.0001)")
+        )
+        compileSources(sources)
+    }
+
+    @Test
+    fun generatedDecimalMaximumFunctionAndTestCompileTogether() {
+        val storage = Files.createTempDirectory("decimal-maximum-source-assistant")
+        val assistant = CodeAssistant(AssistantConfig(storage))
+        val source = assistant.handlePrompt(
+            "Erstelle einen Test für eine Funktion, die den größten Preis in einer Liste findet"
+        )
+
+        assertTrue(source.contains("numbers: List<Double>"))
+        assertTrue(source.contains("assertEquals(8.0, berechneMaximum(listOf(3.0, 8.0, 1.0)))"))
+        compileSources(listOf(0 to source))
+    }
+
+    @Test
+    fun generatedDecimalDifferenceFunctionAndTestCompileTogether() {
+        val storage = Files.createTempDirectory("decimal-difference-source-assistant")
+        val assistant = CodeAssistant(AssistantConfig(storage))
+        val source = assistant.handlePrompt(
+            "Erstelle einen Test für eine Funktion, die die Differenz zweier Preise berechnet"
+        )
+
+        assertTrue(source.contains("firstPrice: Double"))
+        assertTrue(source.contains("assertEquals(2.0, berechneDifferenz(5.0, 3.0))"))
+        compileSources(listOf(0 to source))
     }
 
     private fun compileSources(sources: List<Pair<Int, String>>) {

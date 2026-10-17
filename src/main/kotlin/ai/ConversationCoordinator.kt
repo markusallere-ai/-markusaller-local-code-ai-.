@@ -81,7 +81,18 @@ internal class ConversationCoordinator(
         handlePendingKnowledge(normalized)?.let { return@synchronized it }
         handlePendingPrompt(normalized)?.let { return@synchronized it }
 
-        val resolved = resolve(normalized)
+        ConversationResponder.answerFollowUp(
+            normalized,
+            state.lastTopicPrompt,
+            state.lastTopicResponse
+        )?.let { response ->
+            state.rememberTurn(normalized, response, isSmalltalk = true)
+            return@synchronized ConversationTurnResult(response)
+        }
+
+        val contextualPrompt =
+            ConversationResponder.contextualizeTemperatureFollowUp(normalized, state.lastTopicPrompt)
+        val resolved = resolve(contextualPrompt ?: normalized)
         if (resolved.intent == Intent.Unknown && !resolved.usedKnowledge) {
             state.askForClarification(normalized)
             return@synchronized ConversationTurnResult(
@@ -91,11 +102,20 @@ internal class ConversationCoordinator(
                 awaitingClarification = true
             )
         }
+        state.rememberTurn(
+            contextualPrompt ?: normalized,
+            resolved.response,
+            resolved.intent == Intent.Smalltalk
+        )
         ConversationTurnResult(resolved.response)
     }
 
     fun cancelPendingClarification() = synchronized(lock) {
         state.clear()
+    }
+
+    fun resetConversation() = synchronized(lock) {
+        state.clearConversation()
     }
 
     private fun handlePendingKnowledge(prompt: String): ConversationTurnResult? {

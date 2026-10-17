@@ -331,4 +331,89 @@ class CodeGeneratorTest {
         assertTrue(generated.contains("TODO(\"Zu testendes Verhalten"))
         assertFalse(generated.contains("assertNotNull(\"kotlin\")"))
     }
+
+    @Test
+    fun generatedMaximumFunctionUsesAConcreteListImplementation() {
+        val generated = generator.generate(
+            "Erstelle eine Funktion, die die größte Zahl in einer Liste findet",
+            Intent.GenerateFunction
+        )
+
+        assertTrue(generated.contains("fun berechneMaximum(numbers: List<Int>): Int"), generated)
+        assertTrue(generated.contains("return numbers.maxOrNull() ?: 0"), generated)
+    }
+
+    @Test
+    fun decimalMaximumFunctionTestUsesDoubleArgumentsAndExpectedValue() {
+        val generated = generator.generate(
+            "Erstelle einen Test für eine Funktion, die den größten Preis in einer Liste findet",
+            Intent.GenerateTest
+        )
+
+        assertTrue(generated.contains("fun berechneMaximum(numbers: List<Double>): Double"), generated)
+        assertTrue(generated.contains("assertEquals(8.0, berechneMaximum(listOf(3.0, 8.0, 1.0)))"), generated)
+    }
+
+    @Test
+    fun decimalDifferenceTestUsesDoubleArgumentsAndExpectedValue() {
+        val generated = generator.generate(
+            "Erstelle einen Test für eine Funktion, die die Differenz zweier Preise berechnet",
+            Intent.GenerateTest
+        )
+
+        assertTrue(
+            generated.contains("fun berechneDifferenz(firstPrice: Double, secondPrice: Double): Double"),
+            generated
+        )
+        assertTrue(generated.contains("assertEquals(2.0, berechneDifferenz(5.0, 3.0))"), generated)
+    }
+
+    @Test
+    fun generatedTemperatureConversionUsesTheExpectedFormula() {
+        val generated = generator.generate(
+            "Rechne 25 Celsius in Fahrenheit um",
+            Intent.GenerateFunction
+        )
+
+        assertTrue(generated.contains("fun celsiusToFahrenheit(celsius: Double): Double"), generated)
+        assertTrue(generated.contains("return (celsius * 9.0 / 5.0) + 32.0"), generated)
+    }
+
+    @Test
+    fun generatedReverseTemperatureConversionUsesTheRequestedDirection() {
+        val generated = generator.generate(
+            "Rechne 77 Fahrenheit in Celsius um",
+            Intent.GenerateFunction
+        )
+        val generatedTest = generator.generate(
+            "Erstelle einen Test für die Funktion namens fahrenheitToCelsius, die Fahrenheit in Celsius umrechnen soll",
+            Intent.GenerateTest
+        )
+
+        assertTrue(generated.contains("fun fahrenheitToCelsius(fahrenheit: Double): Double"), generated)
+        assertTrue(generated.contains("return (fahrenheit - 32.0) * 5.0 / 9.0"), generated)
+        assertTrue(generatedTest.contains("assertEquals(25.0, fahrenheitToCelsius(77.0), 0.0001)"), generatedTest)
+    }
+
+    @Test
+    fun reverseTemperatureTestDoesNotInferDirectionFromCustomFunctionName() {
+        val generated = generator.generate(
+            "Erstelle einen Test für eine Funktion namens konvertiereTemperatur, " +
+                "die Fahrenheit in Celsius umrechnen soll",
+            Intent.GenerateTest
+        )
+
+        assertTrue(generated.contains("assertEquals(25.0, konvertiereTemperatur(77.0), 0.0001)"), generated)
+    }
+
+    @Test
+    fun generatedOperationTestUsesTheSameExplicitNameAsTheFunction() {
+        val generated = generator.generate(
+            "Erstelle einen Test für eine Funktion namens findeMaximum, die die größte Zahl findet",
+            Intent.GenerateTest
+        )
+
+        assertTrue(generated.contains("fun findeMaximum(numbers: List<Int>): Int"), generated)
+        assertTrue(generated.contains("assertEquals(8, findeMaximum(listOf(3, 8, 1)))"), generated)
+    }
 }

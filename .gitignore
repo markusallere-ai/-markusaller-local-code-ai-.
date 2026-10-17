@@ -1,5 +1,7 @@
 /.gradle/
 /build/
+/Markusaller.jar
+/CODE_LINES.txt
 /.idea/
 /.vscode/
 /.DS_Store

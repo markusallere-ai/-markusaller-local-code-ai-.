@@ -76,6 +76,16 @@ data class HistoryEntryDto(
     val text: String
 )
 
+/** A persisted snapshot of one chess game, updated after each move. */
+@Serializable
+data class ChessGameDto(
+    val id: String,
+    val timestamp: String,
+    val result: String,
+    val moves: List<String>,
+    val status: String
+)
+
 /** Zentrale JSON-Konfigurationen und Bereinigung nicht endlicher Zahlenwerte. */
 object JsonCodec {
     /** Lesbares JSON für Zustandsdateien, bei dem Standardwerte explizit erhalten bleiben. */
